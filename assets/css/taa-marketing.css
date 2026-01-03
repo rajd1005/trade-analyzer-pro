@@ -1,0 +1,124 @@
+/* Marketing Modal & Button Styles */
+
+/* 1. The Trigger Button */
+.taa-btn-marketing {
+    background: #6f42c1; /* Purple for Marketing */
+    color: white;
+    border: none;
+    padding: 4px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 11px;
+    font-weight: 600;
+    margin-left: 5px;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    transition: background 0.2s;
+}
+
+.taa-btn-marketing:hover {
+    background: #5a32a3;
+    color: #fff;
+}
+
+/* 2. The Modal Overlay */
+.taa-mkt-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.85);
+    z-index: 100000;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    backdrop-filter: blur(5px);
+}
+
+/* 3. The Modal Content */
+.taa-mkt-modal {
+    background: #1e1e2d; /* Dark theme background */
+    padding: 0;
+    border-radius: 12px;
+    box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+    display: flex;
+    flex-direction: column;
+    max-width: 95%;
+    max-height: 95vh;
+    border: 1px solid #333;
+    overflow: hidden;
+}
+
+/* 4. Canvas Container */
+.taa-mkt-canvas-wrap {
+    padding: 20px;
+    background: #000;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    overflow: auto;
+}
+
+.taa-mkt-canvas-wrap canvas {
+    max-width: 100%;
+    max-height: 70vh;
+    box-shadow: 0 0 20px rgba(0,0,0,0.5);
+    border: 1px solid #444;
+}
+
+/* 5. Toolbar / Footer */
+.taa-mkt-toolbar {
+    padding: 15px 20px;
+    background: #2b2b40;
+    border-top: 1px solid #333;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.taa-mkt-title {
+    color: #fff;
+    font-weight: bold;
+    font-size: 16px;
+}
+
+.taa-mkt-actions {
+    display: flex;
+    gap: 10px;
+}
+
+.taa-mkt-btn {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: transform 0.1s;
+}
+.taa-mkt-btn:active { transform: scale(0.98); }
+
+.taa-btn-download {
+    background: #ffc107;
+    color: #000;
+}
+.taa-btn-download:hover { background: #e0a800; }
+
+.taa-btn-telegram {
+    background: #0088cc; /* Telegram Blue */
+    color: white;
+}
+.taa-btn-telegram:hover { background: #0077b5; }
+
+.taa-btn-close {
+    background: transparent;
+    color: #888;
+    border: 1px solid #555;
+}
+.taa-btn-close:hover {
+    background: #333;
+    color: white;
+}

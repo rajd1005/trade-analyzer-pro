@@ -1,0 +1,71 @@
+/* ANALYZER & FORM STYLES */
+.taa-upload-box {
+    padding: 30px;
+    text-align: center;
+    background: #f9f9f9;
+    cursor: pointer;
+    transition: 0.2s;
+    border-bottom: 1px solid #eee;
+}
+.taa-upload-box:hover {
+    background: #f1f1f1;
+    border-color: #ccc;
+}
+
+.taa-result { display: none; padding: 0; }
+
+.taa-header {
+    padding: 15px;
+    text-align: left;
+    color: white;
+    font-weight: bold;
+    font-size: 16px;
+    position: relative;
+}
+
+.taa-table { width: 100%; border-collapse: collapse; }
+.taa-table td {
+    padding: 12px 15px;
+    border-bottom: 1px solid #eee;
+    font-size: 14px;
+    vertical-align: middle;
+    color: #333;
+}
+.taa-highlight-row { background-color: #f0f7ff; font-weight: bold; color: #0073aa; }
+
+.taa-price-display { font-weight: bold; margin-right: 5px; }
+.taa-price-input {
+    width: 90px; padding: 6px; text-align: right; border: 1px solid #ddd;
+    border-radius: 4px; font-size: 15px; font-weight: bold; display: none;
+}
+.taa-edit-icon { cursor: pointer; font-size: 14px; color: #0073aa; opacity: 0.6; }
+.taa-edit-icon:hover { opacity: 1; }
+
+.taa-input-text, .taa-select {
+    width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px;
+    font-size: 14px; box-sizing: border-box; margin-bottom: 10px;
+}
+.taa-label {
+    font-size: 12px; font-weight: bold; color: #666; display: block;
+    margin-bottom: 5px; text-transform: uppercase;
+}
+
+.taa-stats { display: flex; text-align: center; border-top: 1px solid #eee; }
+.taa-stat-box { flex: 1; padding: 15px; }
+
+.taa-dir-selector { margin-bottom: 20px; display: flex; gap: 10px; }
+.taa-radio-label {
+    flex: 1; padding: 10px; border: 1px solid #ddd; border-radius: 4px;
+    cursor: pointer; background: #fff; font-size: 14px; font-weight: bold;
+    color: #555; text-align: center; transition: 0.2s;
+}
+.taa-radio-input { display: none; }
+#rad-buy:checked + label { background-color: #2e7d32; color: white; border-color: #2e7d32; }
+#rad-sell:checked + label { background-color: #c62828; color: white; border-color: #c62828; }
+.taa-radio-input:disabled + label { background-color: #f5f5f5; color: #ccc; cursor: not-allowed; }
+
+.taa-btn-swap {
+    background: #555; color: #fff; border: none; padding: 4px 10px;
+    border-radius: 4px; font-size: 12px; cursor: pointer; vertical-align: middle;
+    float: right; margin-top: -2px;
+}
