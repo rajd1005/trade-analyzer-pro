@@ -2,7 +2,7 @@
 
 /* 1. The Trigger Button */
 .taa-btn-marketing {
-    background: #6f42c1; /* Purple for Marketing */
+    background: #6f42c1;
     color: white;
     border: none;
     padding: 4px 10px;
@@ -32,24 +32,31 @@
     height: 100%;
     background: rgba(0, 0, 0, 0.85);
     z-index: 100000;
-    display: flex;
+    display: none; /* Default hidden */
     justify-content: center;
     align-items: center;
     backdrop-filter: blur(5px);
 }
 
+/* FIX: Force flex display when active to override jQuery fadeIn display:block */
+.taa-mkt-overlay.taa-active {
+    display: flex !important;
+}
+
 /* 3. The Modal Content */
 .taa-mkt-modal {
-    background: #1e1e2d; /* Dark theme background */
+    background: #1e1e2d;
     padding: 0;
     border-radius: 12px;
     box-shadow: 0 20px 50px rgba(0,0,0,0.5);
     display: flex;
     flex-direction: column;
-    max-width: 95%;
+    width: 95%;          /* Changed from max-width to width for consistency */
+    max-width: 1100px;   /* Cap the width */
     max-height: 95vh;
     border: 1px solid #333;
     overflow: hidden;
+    position: relative;  /* Ensure z-index context */
 }
 
 /* 4. Canvas Container */
@@ -61,13 +68,25 @@
     justify-content: center;
     align-items: center;
     overflow: auto;
+    min-height: 300px; /* Ensure container never collapses */
 }
 
+/* FIX: Hard reset for canvas to prevent theme conflicts */
 .taa-mkt-canvas-wrap canvas {
-    max-width: 100%;
-    max-height: 70vh;
+    display: block !important;
+    margin: 0 auto !important;
+    height: auto !important; /* Maintain aspect ratio */
+    max-width: 100% !important;
+    max-height: 70vh !important;
     box-shadow: 0 0 20px rgba(0,0,0,0.5);
     border: 1px solid #444;
+    
+    /* Resets to fight theme styles */
+    visibility: visible !important;
+    opacity: 1 !important;
+    transform: none !important;
+    box-sizing: content-box !important;
+    position: static !important;
 }
 
 /* 5. Toolbar / Footer */
@@ -78,6 +97,7 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
+    flex-shrink: 0; /* Prevent footer from shrinking */
 }
 
 .taa-mkt-title {
@@ -108,12 +128,6 @@
 }
 .taa-btn-download:hover { background: #e0a800; }
 
-.taa-btn-telegram {
-    background: #0088cc; /* Telegram Blue */
-    color: white;
-}
-.taa-btn-telegram:hover { background: #0077b5; }
-
 .taa-btn-close {
     background: transparent;
     color: #888;
@@ -122,35 +136,4 @@
 .taa-btn-close:hover {
     background: #333;
     color: white;
-}
-
-/* --- FORCE OVERRIDES (Robust Fix for Theme Compatibility) --- */
-
-/* Ensure overlay stays flex even if jQuery adds style="display:block" */
-.taa-mkt-overlay[style*="display: block"] {
-    display: flex !important;
-}
-
-/* Force dimensions on the modal so it never collapses */
-.taa-mkt-modal {
-    min-height: 500px;
-    display: flex;
-    flex-direction: column;
-}
-
-/* Ensure container allows canvas to have size */
-.taa-mkt-canvas-wrap {
-    flex: 1 1 auto;
-    min-height: 300px;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-}
-
-/* Override global theme resets that might set display:inline or height:0 */
-.taa-mkt-canvas-wrap canvas {
-    display: block !important;
-    margin: 0 auto;
-    height: auto !important;
-    max-width: 100%;
 }
