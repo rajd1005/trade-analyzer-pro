@@ -2,7 +2,7 @@
     'use strict';
 
     $(document).ready(function() {
-        console.log("TAA v30.9: Marketing (Robust Flex Fix)");
+        console.log("TAA v30.9.1: Marketing (Class-Based Fix)");
 
         if (typeof taa_mkt_vars === 'undefined') {
             console.error("TAA ERROR: taa_mkt_vars missing.");
@@ -10,9 +10,7 @@
         }
 
         var activeTradeData = null;
-        var mainChartImg = null; // Will be initialized per click
-
-        // Drag Vars
+        var mainChartImg = null; 
         var draggableItems = [];
         var activeDragIndex = -1;
         var isDragging = false;
@@ -26,7 +24,7 @@
 
         // --- MODAL HTML ---
         var modalHtml = `
-            <div id="taa-mkt-overlay" class="taa-mkt-overlay" style="display:none;">
+            <div id="taa-mkt-overlay" class="taa-mkt-overlay">
                 <div class="taa-mkt-modal">
                     <div class="taa-mkt-canvas-wrap">
                         <canvas id="taa-mkt-canvas"></canvas>
@@ -58,10 +56,10 @@
             draggableItems = []; 
             activeDragIndex = -1;
             
-            // 2. Open Modal (Robust Class-Based Fix)
+            // 2. Open Modal (Robust Class-Based Method)
+            // We use a class to force display:flex !important via CSS.
+            // .hide().fadeIn() provides the animation while the class maintains the layout.
             var $overlay = $('#taa-mkt-overlay');
-            // Add class 'taa-active' to force display:flex !important via CSS
-            // Then use fadeIn for the opacity animation.
             $overlay.addClass('taa-active').hide().fadeIn(300);
 
             // 3. Initialize Items
@@ -75,33 +73,28 @@
             addDraggableText("TARGET", activeTradeData.target, "#FFFFFF", 900, 520); 
             addDraggableText("SL", activeTradeData.sl, "#FFFFFF", 750, 270);     
 
-            // 4. Force Initial Draw (Shows background + text immediately)
+            // 4. Force Initial Draw
             drawCanvas();
 
-            // 5. Load Chart Image (Robust Method)
+            // 5. Load Chart Image
             mainChartImg = new Image();
-            
             mainChartImg.onload = function() { 
-                console.log("Chart image loaded.");
-                drawCanvas(); // Redraw when image arrives
+                drawCanvas(); 
             };
-            
             mainChartImg.onerror = function() {
                 console.error("Failed to load chart image:", activeTradeData.img);
             };
-
-            // Set source AFTER defining onload
             mainChartImg.src = activeTradeData.img;
 
-            // Handle cached images immediately
             if (mainChartImg.complete) {
                 drawCanvas();
             }
         });
 
+        // --- CLOSE HANDLER (FIXED) ---
         $('#taa-mkt-close').on('click', function() { 
             $('#taa-mkt-overlay').fadeOut(300, function() {
-                $(this).removeClass('taa-active'); // Remove class after animation
+                $(this).removeClass('taa-active'); // Remove class only after fade completes
             }); 
         });
 
@@ -134,23 +127,16 @@
         // --- DRAG EVENTS ---
         $(document).on('mousedown touchstart', '#taa-mkt-canvas', function(e) {
             var evt = e.originalEvent || e; var pos = getMousePos(evt);
-            
-            // Reverse loop to select top-most items first
             for (var i = draggableItems.length - 1; i >= 0; i--) {
                 var it = draggableItems[i];
                 if (it.type === 'image' && !it.loaded) continue;
-                
-                // Hit detection
                 if (pos.x >= it.x && pos.x <= it.x + it.w && pos.y >= it.y && pos.y <= it.y + it.h) {
                     isDragging = true; activeDragIndex = i; dragOffset.x = pos.x - it.x; dragOffset.y = pos.y - it.y; 
                     drawCanvas(); 
                     return; 
                 }
             }
-            if(activeDragIndex !== -1) {
-                activeDragIndex = -1;
-                drawCanvas();
-            }
+            if(activeDragIndex !== -1) { activeDragIndex = -1; drawCanvas(); }
         });
 
         $(document).on('mousemove touchmove', function(e) {
@@ -163,9 +149,7 @@
             }
         });
 
-        $(document).on('mouseup touchend', function() { 
-            isDragging = false; 
-        });
+        $(document).on('mouseup touchend', function() { isDragging = false; });
 
         // --- DRAW FUNCTION ---
         function drawCanvas() {
@@ -174,7 +158,6 @@
             var ctx = cvs.getContext('2d');
             var W = 1126; var H = 844;
             
-            // Ensure canvas internal resolution matches logic
             if(cvs.width !== W) { cvs.width = W; cvs.height = H; }
             
             ctx.setTransform(1, 0, 0, 1, 0, 0); 
@@ -199,16 +182,11 @@
             var imgY = 130; var imgH = 550; var imgW = W - 40; var imgX = 20;
             ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 1; ctx.strokeRect(imgX, imgY, imgW, imgH);
             
-            // Check if image is ready to draw
             if (mainChartImg && mainChartImg.complete && mainChartImg.naturalWidth !== 0) {
                 ctx.drawImage(mainChartImg, imgX, imgY, imgW, imgH);
             } else {
-                // Placeholder while loading
-                ctx.fillStyle = "#222"; 
-                ctx.fillRect(imgX, imgY, imgW, imgH);
-                ctx.fillStyle = "#555"; 
-                ctx.font = "20px Arial"; 
-                ctx.textAlign = "center";
+                ctx.fillStyle = "#222"; ctx.fillRect(imgX, imgY, imgW, imgH);
+                ctx.fillStyle = "#555"; ctx.font = "20px Arial"; ctx.textAlign = "center";
                 ctx.fillText("Loading Chart...", W/2, imgY + imgH/2);
             }
 
@@ -223,18 +201,13 @@
                     ctx.drawImage(it.img, it.x, it.y, it.w, it.h);
                 } else if (it.type === 'text') {
                     ctx.save();
-                    ctx.font = "20px Arial"; 
-                    ctx.textAlign = "left"; ctx.textBaseline = "top";
+                    ctx.font = "20px Arial"; ctx.textAlign = "left"; ctx.textBaseline = "top";
                     var txt = it.label + " @ " + it.value;
-                    
                     ctx.lineWidth = 4; ctx.strokeStyle = "rgba(0,0,0,0.8)"; ctx.strokeText(txt, it.x, it.y);
                     ctx.fillStyle = it.color; ctx.fillText(txt, it.x, it.y);
-                    
                     it.w = ctx.measureText(txt).width; it.h = 24;
                     ctx.restore();
                 }
-
-                // Selection Box
                 if (idx === activeDragIndex) {
                     ctx.save();
                     ctx.strokeStyle = "#00FFFF"; ctx.lineWidth = 2;
@@ -249,7 +222,6 @@
             var startY = imgY + imgH + 15; 
             ctx.fillStyle = "#FFC107"; ctx.fillRect(0, startY, W, H - startY);
             
-            // Clean up numbers for display
             var cleanProfit = activeTradeData.profit.replace(/[^0-9.,₹-]/g, ''); 
             var metrics = [ 
                 {l:"Profit", v: activeTradeData.profit},
@@ -267,17 +239,13 @@
             });
         }
 
-        // --- DOWNLOAD ACTION ---
         $('#taa-mkt-dl').on('click', function() {
-            activeDragIndex = -1; // Deselect before saving
+            activeDragIndex = -1; 
             drawCanvas(); 
-
             var canvas = document.getElementById('taa-mkt-canvas');
             var link = document.createElement('a');
-            
             var fn = (activeTradeData.inst + "_" + activeTradeData.strike).replace(/\s+/g,'_').replace(/[^a-zA-Z0-9_]/g, '');
             if(!fn) fn = "Trade_Signal";
-            
             link.download = fn + '.jpg';
             link.href = canvas.toDataURL("image/jpeg", 1.0);
             link.click();
