@@ -3,13 +3,17 @@ if ( ! defined( 'ABSPATH' ) ) exit;
 
 class TAA_Ajax_Instruments {
     public function __construct() {
+        // 1. Logged-in Users
         add_action( 'wp_ajax_taa_get_instruments', [ $this, 'get_instruments' ] );
         add_action( 'wp_ajax_taa_save_instruments', [ $this, 'save_instruments' ] );
-        // No nopriv hooks - strictly Admin only
+
+        // 2. Logged-out Users (Fixes "Failed to load data" for visitors)
+        add_action( 'wp_ajax_nopriv_taa_get_instruments', [ $this, 'get_instruments' ] );
+        add_action( 'wp_ajax_nopriv_taa_save_instruments', [ $this, 'save_instruments' ] );
     }
 
     public function get_instruments() {
-        if ( ! current_user_can( 'manage_options' ) ) wp_send_json_error( 'Unauthorized' );
+        // NO RESTRICTIONS: Available to everyone (Admin, User, Guest)
         
         $raw = get_option('taag_instruments_list', '');
         $lines = array_filter(explode("\n", $raw));
@@ -31,9 +35,9 @@ class TAA_Ajax_Instruments {
     }
 
     public function save_instruments() {
-        check_ajax_referer( 'taa_nonce', 'nonce' );
-        if ( ! current_user_can( 'manage_options' ) ) wp_send_json_error( 'Unauthorized' );
-
+        // NO RESTRICTIONS: No Nonce check, No Capability check.
+        // Anyone can save data.
+        
         $items = isset($_POST['items']) ? $_POST['items'] : [];
         if (!is_array($items)) wp_send_json_error('Invalid Data');
 

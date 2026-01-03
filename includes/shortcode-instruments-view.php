@@ -2,10 +2,7 @@
 // FILE: includes/shortcode-instruments-view.php
 if ( ! defined( 'ABSPATH' ) ) exit;
 
-if ( ! current_user_can( 'manage_options' ) ) {
-    echo '<div style="padding:20px; color:red; background:#fff; border:1px solid red;">⛔ Access Denied: Admins Only.</div>';
-    return;
-}
+// NO RESTRICTIONS: Renders for all users (Logged in or out)
 ?>
 <div class="taa-dashboard-wrapper" style="width:100%; max-width:100%; margin:0 auto;">
     
