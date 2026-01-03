@@ -2,7 +2,7 @@
     'use strict';
 
     $(document).ready(function() {
-        console.log("TAA v30.9: Marketing (Robust Loader Fix)");
+        console.log("TAA v30.9: Marketing (Robust Flex Fix)");
 
         if (typeof taa_mkt_vars === 'undefined') {
             console.error("TAA ERROR: taa_mkt_vars missing.");
@@ -43,7 +43,7 @@
         `;
         if ($('#taa-mkt-overlay').length === 0) $('body').append(modalHtml);
 
-        // --- OPEN HANDLER (THE FIX) ---
+        // --- OPEN HANDLER (FIXED) ---
         $(document).on('click', '.taa-btn-marketing', function(e) {
             e.preventDefault();
             
@@ -58,8 +58,12 @@
             draggableItems = []; 
             activeDragIndex = -1;
             
-            // 2. Open Modal First
-            $('#taa-mkt-overlay').fadeIn();
+            // 2. Open Modal First (Robust Flex Fix)
+            // We force display:flex before and after the fade to prevent jQuery from setting display:block
+            var $overlay = $('#taa-mkt-overlay');
+            $overlay.css('display', 'flex').hide().fadeIn(300, function() {
+                $(this).css('display', 'flex'); 
+            });
 
             // 3. Initialize Items
             var isBuy = (activeTradeData.dir.toUpperCase() === 'BUY');
@@ -245,11 +249,11 @@
             ctx.fillStyle = "#FFC107"; ctx.fillRect(0, startY, W, H - startY);
             
             // Clean up numbers for display
-            var cleanProfit = activeTradeData.profit.replace(/[^0-9.,₹-]/g, ''); // Ensure currency symbol is kept if needed
+            var cleanProfit = activeTradeData.profit.replace(/[^0-9.,₹-]/g, ''); 
             var metrics = [ 
                 {l:"Profit", v: activeTradeData.profit},
                 {l:"Risk", v: activeTradeData.risk},
-                {l:"Risk & Reward", v: "1:" + activeTradeData.rr.replace('1:','')}, // Prevent double 1:1:
+                {l:"Risk & Reward", v: "1:" + activeTradeData.rr.replace('1:','')}, 
                 {l:"Lot Size", v: activeTradeData.lots} 
             ];
             
