@@ -58,12 +58,11 @@
             draggableItems = []; 
             activeDragIndex = -1;
             
-            // 2. Open Modal First (Robust Flex Fix)
-            // We force display:flex before and after the fade to prevent jQuery from setting display:block
+            // 2. Open Modal (Robust Class-Based Fix)
             var $overlay = $('#taa-mkt-overlay');
-            $overlay.css('display', 'flex').hide().fadeIn(300, function() {
-                $(this).css('display', 'flex'); 
-            });
+            // Add class 'taa-active' to force display:flex !important via CSS
+            // Then use fadeIn for the opacity animation.
+            $overlay.addClass('taa-active').hide().fadeIn(300);
 
             // 3. Initialize Items
             var isBuy = (activeTradeData.dir.toUpperCase() === 'BUY');
@@ -100,7 +99,11 @@
             }
         });
 
-        $('#taa-mkt-close').on('click', function() { $('#taa-mkt-overlay').fadeOut(); });
+        $('#taa-mkt-close').on('click', function() { 
+            $('#taa-mkt-overlay').fadeOut(300, function() {
+                $(this).removeClass('taa-active'); // Remove class after animation
+            }); 
+        });
 
         // --- HELPERS ---
         function addDraggableImage(url, x, y, w, centered) {
