@@ -2,7 +2,7 @@
     'use strict';
 
     $(document).ready(function() {
-        console.log("TAA v30.9.1: Marketing (Class-Based Fix)");
+        console.log("TAA v30.9.2: Marketing (Telegram Integrated)");
 
         if (typeof taa_mkt_vars === 'undefined') {
             console.error("TAA ERROR: taa_mkt_vars missing.");
@@ -22,7 +22,7 @@
         var tagUrl = basePath + 'tag.png';
         var contactTagUrl = basePath + 'tag-contact.png';
 
-        // --- MODAL HTML ---
+        // --- MODAL HTML (Updated with Telegram Button) ---
         var modalHtml = `
             <div id="taa-mkt-overlay" class="taa-mkt-overlay">
                 <div class="taa-mkt-modal">
@@ -32,6 +32,9 @@
                     <div class="taa-mkt-toolbar">
                         <div class="taa-mkt-title">Marketing Preview (Drag elements to position)</div>
                         <div class="taa-mkt-actions">
+                            <button id="taa-mkt-telegram" class="taa-mkt-btn taa-btn-telegram" style="background-color:#0088cc; color:#fff; margin-right:10px;">
+                                ✈ Send Telegram
+                            </button>
                             <button id="taa-mkt-dl" class="taa-mkt-btn taa-btn-download">⬇ Download Image</button>
                             <button id="taa-mkt-close" class="taa-mkt-btn taa-btn-close">Close</button>
                         </div>
@@ -41,7 +44,7 @@
         `;
         if ($('#taa-mkt-overlay').length === 0) $('body').append(modalHtml);
 
-        // --- OPEN HANDLER (FIXED) ---
+        // --- OPEN HANDLER ---
         $(document).on('click', '.taa-btn-marketing', function(e) {
             e.preventDefault();
             
@@ -56,9 +59,7 @@
             draggableItems = []; 
             activeDragIndex = -1;
             
-            // 2. Open Modal (Robust Class-Based Method)
-            // We use a class to force display:flex !important via CSS.
-            // .hide().fadeIn() provides the animation while the class maintains the layout.
+            // 2. Open Modal
             var $overlay = $('#taa-mkt-overlay');
             $overlay.addClass('taa-active').hide().fadeIn(300);
 
@@ -78,6 +79,8 @@
 
             // 5. Load Chart Image
             mainChartImg = new Image();
+            // CORS support for external images if needed
+            mainChartImg.crossOrigin = "Anonymous"; 
             mainChartImg.onload = function() { 
                 drawCanvas(); 
             };
@@ -91,16 +94,84 @@
             }
         });
 
-        // --- CLOSE HANDLER (FIXED) ---
+        // --- CLOSE HANDLER ---
         $('#taa-mkt-close').on('click', function() { 
             $('#taa-mkt-overlay').fadeOut(300, function() {
-                $(this).removeClass('taa-active'); // Remove class only after fade completes
+                $(this).removeClass('taa-active');
             }); 
+        });
+
+        // --- TELEGRAM SEND HANDLER (NEW) ---
+        $('#taa-mkt-telegram').on('click', function() {
+            var $btn = $(this);
+            var originalText = $btn.html();
+            
+            // 1. Deselect any active item for clean screenshot
+            activeDragIndex = -1;
+            drawCanvas();
+
+            $btn.prop('disabled', true).html('⌛ Sending...');
+
+            var canvas = document.getElementById('taa-mkt-canvas');
+            
+            // 2. Convert Canvas to Blob
+            canvas.toBlob(function(blob) {
+                if (!blob) {
+                    alert('Error generating image.');
+                    $btn.prop('disabled', false).html(originalText);
+                    return;
+                }
+
+                var formData = new FormData();
+                formData.append('action', 'taa_send_marketing_telegram');
+                formData.append('security', taa_vars.nonce); // Security Nonce
+                formData.append('image', blob, 'trade_signal.jpg');
+                
+                // Construct a caption
+                var caption = "🔔 *" + activeTradeData.inst + "* (" + activeTradeData.dir + ")\n" +
+                              "Entry: " + activeTradeData.entry + "\n" +
+                              "Target: " + activeTradeData.target + "\n" + 
+                              "SL: " + activeTradeData.sl;
+                formData.append('caption', caption);
+
+                // 3. Send AJAX
+                $.ajax({
+                    url: taa_vars.ajaxurl,
+                    type: 'POST',
+                    data: formData,
+                    processData: false,
+                    contentType: false,
+                    success: function(response) {
+                        if(response.success) {
+                            // Using SweetAlert if available (from your enqueue-scripts), else standard alert
+                            if(typeof Swal !== 'undefined') {
+                                Swal.fire('Sent!', 'Trade setup sent to Telegram successfully.', 'success');
+                            } else {
+                                alert('Sent to Telegram successfully!');
+                            }
+                        } else {
+                            if(typeof Swal !== 'undefined') {
+                                Swal.fire('Error', response.data || 'Unknown error', 'error');
+                            } else {
+                                alert('Error: ' + (response.data || 'Unknown error'));
+                            }
+                        }
+                    },
+                    error: function(xhr, status, error) {
+                        alert('AJAX Error: ' + error);
+                    },
+                    complete: function() {
+                        $btn.prop('disabled', false).html(originalText);
+                    }
+                });
+
+            }, 'image/jpeg', 0.95); // 95% Quality JPG
         });
 
         // --- HELPERS ---
         function addDraggableImage(url, x, y, w, centered) {
             var item = { type: 'image', x: x, y: y, w: w, h: 0, img: new Image(), loaded: false };
+            item.img.crossOrigin = "Anonymous";
             item.img.onload = function() {
                 item.loaded = true;
                 item.h = w / (item.img.width / item.img.height);
@@ -183,7 +254,11 @@
             ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 1; ctx.strokeRect(imgX, imgY, imgW, imgH);
             
             if (mainChartImg && mainChartImg.complete && mainChartImg.naturalWidth !== 0) {
-                ctx.drawImage(mainChartImg, imgX, imgY, imgW, imgH);
+                try {
+                    ctx.drawImage(mainChartImg, imgX, imgY, imgW, imgH);
+                } catch(e) {
+                    ctx.fillStyle = "#222"; ctx.fillText("CORS Error: Canvas Tainted", W/2, imgY + imgH/2);
+                }
             } else {
                 ctx.fillStyle = "#222"; ctx.fillRect(imgX, imgY, imgW, imgH);
                 ctx.fillStyle = "#555"; ctx.font = "20px Arial"; ctx.textAlign = "center";
@@ -239,6 +314,7 @@
             });
         }
 
+        // --- DOWNLOAD HANDLER ---
         $('#taa-mkt-dl').on('click', function() {
             activeDragIndex = -1; 
             drawCanvas(); 

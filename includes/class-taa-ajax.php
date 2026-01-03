@@ -20,6 +20,14 @@ class TAA_Ajax {
         require_once TAA_PLUGIN_DIR . 'includes/ajax/class-taa-ajax-loaders.php';
         new TAA_Ajax_Loaders();
 
+        // 4. NEW: Instruments Editor
+        require_once TAA_PLUGIN_DIR . 'includes/ajax/class-taa-ajax-instruments.php';
+        new TAA_Ajax_Instruments();
+
+        // 4. Marketing Actions (Telegram Send) [NEW]
+        require_once TAA_PLUGIN_DIR . 'includes/ajax/class-taa-ajax-marketing.php';
+        new TAA_Ajax_Marketing(); 
+
         // Removed: Design Generator Data Fetcher
     }
 }

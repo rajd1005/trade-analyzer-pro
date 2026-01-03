@@ -2,7 +2,7 @@
     'use strict';
     
     $(document).ready(function() {
-        console.log("TAA v40: Staging Module (Rejection Editor Fix)");
+        console.log("TAA v40: Staging Module (Rejection Editor Fix + Hard Delete)");
 
         // 1. APPROVE ACTION
         $(document).on('click', '.taa-js-approve', function(e) {
@@ -143,6 +143,45 @@
         $('#taa-btn-fullscreen').on('click', function(e) {
             e.preventDefault();
             $('#taa-reject-modal .taa-modal-content').toggleClass('fullscreen');
+        });
+
+        // 5. HARD DELETE HANDLER
+        $(document).on('click', '.taa-js-hard-delete', function(e) {
+            e.preventDefault();
+            var btn = $(this);
+            var id = btn.data('id');
+
+            Swal.fire({
+                title: 'Hard Delete?',
+                text: "This will permanently delete the trade record AND the chart image file. This cannot be undone.",
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#d33',
+                cancelButtonColor: '#3085d6',
+                confirmButtonText: 'Yes, delete it!'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    btn.prop('disabled', true).text('...');
+                    
+                    $.post(taa_vars.ajaxurl, { 
+                        action: 'taa_hard_delete', 
+                        id: id 
+                    }, function(res) {
+                        if (res.success) {
+                            Toast.fire({ icon: 'success', title: 'Deleted' });
+                            // Remove row from table
+                            btn.closest('tr').fadeOut(500, function() { $(this).remove(); });
+                            notifyGlobalChange(); 
+                        } else {
+                            Swal.fire('Error', res.data, 'error');
+                            btn.prop('disabled', false).text('🗑');
+                        }
+                    }).fail(function() {
+                        Swal.fire('Error', 'Server Error', 'error');
+                        btn.prop('disabled', false).text('🗑');
+                    });
+                }
+            });
         });
     });
 })(jQuery);

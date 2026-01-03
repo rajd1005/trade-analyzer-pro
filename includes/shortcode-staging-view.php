@@ -108,6 +108,12 @@ if (!$is_ajax):
                                     data-profit="<?php echo TAA_DB::format_inr($r->profit); ?>"
                                 >✖</button>
                             <?php endif; ?>
+
+                            <button class="taa-js-hard-delete" data-id="<?php echo $r->id; ?>" 
+                                    title="Hard Delete (Removes Image & Data)"
+                                    style="background:none; border:none; color:#999; cursor:pointer; font-size:14px; margin-left:5px;">
+                                🗑
+                            </button>
                         </td>
                     </tr>
                     <?php endforeach; 

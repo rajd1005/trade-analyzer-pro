@@ -22,7 +22,7 @@ if (!$is_ajax):
         <table class="taa-staging-table">
             <thead>
                 <tr>
-                    <th>Time</th><th>Dir</th><th>Instrument</th><th>Strike</th><th>Entry</th><th>Target</th><th>SL</th><th>Risk</th><th>RR</th><th>Status</th><th>Profit</th><th>Chart</th><th>Feedback</th>
+                    <th>Time</th><th>Dir</th><th>Instrument</th><th>Strike</th><th>Entry</th><th>Target</th><th>SL</th><th>Risk</th><th>RR</th><th>Status</th><th>Profit</th><th>Chart</th><th>Feedback</th><th>Action</th>
                 </tr>
             </thead>
             <tbody class="taa-table-body">
@@ -110,12 +110,23 @@ if (!$is_ajax):
                                 -
                             <?php endif; ?>
                         </td>
+                        <td style="text-align:center;">
+                            <?php if ($r->status === 'PENDING'): ?>
+                                <button class="taa-js-hard-delete" data-id="<?php echo $r->id; ?>" 
+                                        title="Hard Delete (Removes Image & Data)"
+                                        style="background:none; border:none; color:#d9534f; cursor:pointer; font-size:16px;">
+                                    🗑
+                                </button>
+                            <?php else: ?>
+                                <span style="color:#ccc; font-size:12px;">-</span>
+                            <?php endif; ?>
+                        </td>
                     </tr>
                     <?php endforeach;
                     
                     echo "<tr style='background:#e8f5e9; font-weight:bold; border-top:2px solid #28a745;'><td colspan='10' style='text-align:right;'>TOTAL APPROVED PROFIT:</td><td style='color:green; font-size:14px;'>" . TAA_DB::format_inr($total_approved_profit) . "</td><td colspan='2'></td></tr>";
                 else:
-                    echo "<tr><td colspan='13' style='text-align:center; padding:20px;'>No history found.</td></tr>";
+                    echo "<tr><td colspan='14' style='text-align:center; padding:20px;'>No history found.</td></tr>";
                 endif; 
                 ?>
 

@@ -21,6 +21,51 @@ class TAA_Ajax_Staging {
         // 3. Daily Report Data Fetcher (Enhanced)
         add_action( 'wp_ajax_taa_fetch_daily_report', [ $this, 'fetch_daily_report' ] );
         add_action( 'wp_ajax_nopriv_taa_fetch_daily_report', [ $this, 'fetch_daily_report' ] );
+
+        // 4. Hard Delete
+        add_action( 'wp_ajax_taa_hard_delete', [ $this, 'hard_delete_trade' ] );
+        add_action( 'wp_ajax_nopriv_taa_hard_delete', [ $this, 'hard_delete_trade' ] );
+    }
+
+    /**
+     * Hard Delete Trade & Image
+     */
+    public function hard_delete_trade() {
+        global $wpdb;
+        $id = intval($_POST['id']);
+        
+        // 1. Get Trade Details to find Image
+        $table = $wpdb->prefix . 'taa_staging';
+        $row = $wpdb->get_row("SELECT * FROM $table WHERE id = $id");
+        
+        if (!$row) {
+            wp_send_json_error('Trade not found');
+        }
+
+        // 2. Delete Main Image
+        if (!empty($row->image_url)) {
+            $file_path = $this->resolve_path_from_url($row->image_url);
+            if ($file_path && file_exists($file_path)) {
+                @unlink($file_path);
+            }
+        }
+
+        // 3. Delete Rejection Image (if exists)
+        if (!empty($row->rejection_image)) {
+            $file_path_rej = $this->resolve_path_from_url($row->rejection_image);
+            if ($file_path_rej && file_exists($file_path_rej)) {
+                @unlink($file_path_rej);
+            }
+        }
+
+        // 4. Delete Database Row
+        $result = $wpdb->delete($table, ['id' => $id]);
+
+        if ($result !== false) {
+            wp_send_json_success('Trade and Image Deleted Permanently');
+        } else {
+            wp_send_json_error('Database Error: Could not delete row');
+        }
     }
 
     /**
@@ -104,9 +149,7 @@ class TAA_Ajax_Staging {
             }
         }
         
-        // Final Formatting: Reverse to show in chronological order if needed, or keep as is.
-        // For the image list, usually we want oldest at top or newest at top.
-        // Let's standardise: Reverse it so the loop in JS (top-down) renders them nicely.
+        // Final Formatting
         $daily_summary = array_reverse($daily_summary);
         
         wp_send_json_success([
