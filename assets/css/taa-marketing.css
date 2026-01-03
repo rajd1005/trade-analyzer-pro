@@ -54,6 +54,7 @@
 
 /* 4. Canvas Container */
 .taa-mkt-canvas-wrap {
+    flex: 1;
     padding: 20px;
     background: #000;
     display: flex;
