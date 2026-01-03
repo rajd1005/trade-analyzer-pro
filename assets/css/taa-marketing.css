@@ -123,3 +123,34 @@
     background: #333;
     color: white;
 }
+
+/* --- FORCE OVERRIDES (Robust Fix for Theme Compatibility) --- */
+
+/* Ensure overlay stays flex even if jQuery adds style="display:block" */
+.taa-mkt-overlay[style*="display: block"] {
+    display: flex !important;
+}
+
+/* Force dimensions on the modal so it never collapses */
+.taa-mkt-modal {
+    min-height: 500px;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Ensure container allows canvas to have size */
+.taa-mkt-canvas-wrap {
+    flex: 1 1 auto;
+    min-height: 300px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+/* Override global theme resets that might set display:inline or height:0 */
+.taa-mkt-canvas-wrap canvas {
+    display: block !important;
+    margin: 0 auto;
+    height: auto !important;
+    max-width: 100%;
+}
