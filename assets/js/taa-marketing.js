@@ -81,7 +81,6 @@
 
             // 5. Load Chart Image (Robust Method)
             mainChartImg = new Image();
-            mainChartImg.crossOrigin = "anonymous";
             
             mainChartImg.onload = function() { 
                 console.log("Chart image loaded.");
@@ -106,7 +105,6 @@
         // --- HELPERS ---
         function addDraggableImage(url, x, y, w, centered) {
             var item = { type: 'image', x: x, y: y, w: w, h: 0, img: new Image(), loaded: false };
-            item.img.crossOrigin = "anonymous";
             item.img.onload = function() {
                 item.loaded = true;
                 item.h = w / (item.img.width / item.img.height);
