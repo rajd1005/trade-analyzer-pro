@@ -2,22 +2,54 @@
     'use strict';
     
     $(document).ready(function() {
-        console.log("TAA v31.7: Analyzer Module (Validation Rules Configurable)");
+        console.log("TAA v32.2: Analyzer UI (Click Fix & Mandatory Image)");
         
         // ==========================================
-        //  ANALYZER FRONTEND
+        //  HELPER: Row Reordering
+        // ==========================================
+        function applyRowOrder() {
+            var dir = $('#current-dir').val(); 
+            var $parent = $('#taa-table-body');
+            var $rowEntry  = $('#tr-entry');
+            var $rowTarget = $('#tr-target');
+            var $rowSl     = $('#tr-sl');
+
+            if (dir === 'BUY') {
+                // Order: Target (Top), Entry (Mid), SL (Bot)
+                $parent.prepend($rowSl);
+                $parent.prepend($rowEntry);
+                $parent.prepend($rowTarget);
+            } else {
+                // Order: SL (Top), Entry (Mid), Target (Bot)
+                $parent.prepend($rowTarget);
+                $parent.prepend($rowEntry);
+                $parent.prepend($rowSl);
+            }
+        }
+
+        // ==========================================
+        //  UI & RULES
         // ==========================================
         function updateRules() {
             var val = $('#taa-instrument-select').val();
-            if (!val) return;
+            if (!val) {
+                $('#info-lot-display').hide();
+                $('#taa-instr-box').hide();
+                return;
+            }
+            
             var parts = val.split('|');
-            var name = parts[0].toUpperCase();
+            var lotSize = parts[1] || '0';
             var mode = parts[2] || 'BOTH';
+
+            // Show Lot Size
+            $('#txt-lot-val').text(lotSize);
+            $('#info-lot-display').show();
 
             $('#rule-mode').val(mode);
             $('#rule-strike-req').val(parts[3] || 'NO');
 
-            // Reset Radio Buttons based on Mode
+            // Set Radio Buttons
             $('#rad-buy').prop('disabled', false);
             $('#rad-sell').prop('disabled', false);
             $('#btn-swap').prop('disabled', false).css('opacity', '1');
@@ -25,16 +57,18 @@
             if (mode === 'BUY') {
                 $('#rad-buy').prop('checked', true); 
                 $('#rad-sell').prop('disabled', true).prop('checked', false);
-                $('#btn-swap').prop('disabled', true).css('opacity', '0.5'); // Disable Swap
+                $('#btn-swap').prop('disabled', true).css('opacity', '0.5'); 
                 $('#current-dir').val('BUY');
             } else if (mode === 'SELL') {
                 $('#rad-sell').prop('checked', true); 
                 $('#rad-buy').prop('disabled', true).prop('checked', false);
-                $('#btn-swap').prop('disabled', true).css('opacity', '0.5'); // Disable Swap
+                $('#btn-swap').prop('disabled', true).css('opacity', '0.5'); 
                 $('#current-dir').val('SELL');
             }
+            
+            applyRowOrder();
 
-            if (name.includes('FUT')) {
+            if (parts[0].toUpperCase().includes('FUT')) {
                 $('#taa-pre-strike').hide(); $('#taa-strike-select').show();
             } else {
                 $('#taa-pre-strike').show(); $('#taa-strike-select').hide();
@@ -46,16 +80,54 @@
             } else {
                 $lbl.css('color', '#666').text("STRIKE PRICE (Optional):");
             }
+
+            // DYNAMIC INSTRUCTIONS
+            var instrText = "";
+            var globalMode = $('#taag-global-mode').val();
+            
+            if (globalMode === 'ai' || (globalMode === 'both' && mode !== 'MANUAL')) {
+                 instrText = "✨ <strong>AI Mode:</strong> Upload or Paste (Ctrl+V) a Chart Image to automatically extract levels.";
+            } 
+            if (globalMode === 'manual') {
+                 instrText = "✍ <strong>Manual Mode:</strong> Upload Chart Image here (Required), then click 'Enter Manually'.";
+            }
+            if (globalMode === 'both') {
+                 instrText = "<strong>AI or Manual:</strong> Upload/Paste Chart (Mandatory) to Auto-Analyze or Enter Manually.";
+            }
+
+            $('#taa-instr-text').html(instrText);
+            $('#taa-instr-box').show();
         }
 
         $('#taa-instrument-select').on('change', updateRules);
 
-        // Buttons
-        $('#taa-btn-analyze').on('click', function(e) { e.preventDefault(); $('#taa-file-input').trigger('click'); });
-        $('#taa-btn-manual').on('click', function(e) { e.preventDefault(); startManualMode(); });
-        $('#taa-file-input').on('change', function() { if (this.files[0]) processFile(this.files[0]); });
+        // ==========================================
+        //  DROP ZONE / UPLOAD / PASTE
+        // ==========================================
+        
+        // Click on Box -> Trigger File Input
+        // FIX: Check closest to ensure we don't trigger if remove button was clicked
+        $('#taa-drop-zone').on('click', function(e) {
+            if ($(e.target).closest('#taa-remove-img').length > 0) {
+                return; // Do nothing if remove button clicked
+            }
+            $('#taa-file-input').trigger('click');
+        });
 
-        // Paste Logic
+        // File Input Change
+        $('#taa-file-input').on('change', function() {
+            if (this.files && this.files[0]) {
+                showPreview(this.files[0]);
+            }
+        });
+
+        // Remove Image
+        $('#taa-remove-img').on('click', function(e) {
+            e.stopPropagation(); // Stop bubbling
+            clearPreview();
+        });
+
+        // Paste Event (Global when Upload Section is visible)
         document.addEventListener('paste', function(e) {
             if ($('#taa-upload-section').is(':visible') && e.clipboardData) {
                 var items = e.clipboardData.items;
@@ -63,42 +135,75 @@
                     if (items[i].type.indexOf('image') !== -1) {
                         e.preventDefault(); 
                         var file = items[i].getAsFile();
-                        var globalMode = $('#taag-global-mode').val(); 
-
-                        if (!validateSetup()) return;
-
-                        if (globalMode === 'manual') {
-                            startManualMode();
-                            var dt = new DataTransfer();
-                            dt.items.add(file);
-                            var manualInput = $('#taa-manual-file')[0];
-                            if (manualInput) {
-                                manualInput.files = dt.files;
-                                Toast.fire({ icon: 'success', title: 'Image Pasted for Manual Entry' });
-                            }
-                        } else {
-                            processFile(file);
-                        }
+                        
+                        // Update File Input
+                        var dt = new DataTransfer();
+                        dt.items.add(file);
+                        $('#taa-file-input')[0].files = dt.files;
+                        
+                        showPreview(file);
+                        
+                        const Toast = Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 2000 });
+                        Toast.fire({ icon: 'success', title: 'Image Pasted' });
                         break;
                     }
                 }
             }
         });
 
-        // Swap Button
+        function showPreview(file) {
+            var reader = new FileReader();
+            reader.onload = function(e) {
+                $('#taa-img-preview').attr('src', e.target.result);
+                $('#taa-drop-content').hide();
+                $('#taa-preview-container').show();
+                $('#taa-drop-zone').css('border-style', 'solid');
+            }
+            reader.readAsDataURL(file);
+        }
+
+        function clearPreview() {
+            $('#taa-file-input').val('');
+            $('#taa-img-preview').attr('src', '');
+            $('#taa-preview-container').hide();
+            $('#taa-drop-content').show();
+            $('#taa-drop-zone').css('border-style', 'dashed');
+        }
+
+        // ==========================================
+        //  BUTTON ACTIONS
+        // ==========================================
+
+        // AI Analyze
+        $('#taa-btn-analyze').on('click', function(e) { 
+            e.preventDefault(); 
+            var file = $('#taa-file-input')[0].files[0];
+            
+            // Mandatory Check
+            if (!file) {
+                Swal.fire('Required', 'Please Upload or Paste a Chart Image first.', 'warning');
+                return;
+            }
+            processFile(file);
+        });
+
+        // Manual Mode
+        $('#taa-btn-manual').on('click', function(e) { 
+            e.preventDefault(); 
+            startManualMode(); 
+        });
+
         $('#btn-swap').on('click', function(e) {
             e.preventDefault();
-            
-            // 1. Check Instrument Rule
             var mode = $('#rule-mode').val();
             if (mode !== 'BOTH') {
                 Swal.fire('Restricted', 'This instrument is configured for ' + mode + ' only.', 'warning');
                 return;
             }
-
-            // 2. Perform Swap
             var cur = $('#current-dir').val();
             $('#current-dir').val(cur === 'SELL' ? 'BUY' : 'SELL');
+            
+            applyRowOrder();
             updateUI();
             calculateLive();
         });
@@ -120,10 +225,12 @@
             calculateLive();
         });
 
-        $('#taa-pre-strike, #taa-strike-select').on('input change', function() {
-            updateUI(); 
-        });
+        $('#taa-pre-strike, #taa-strike-select').on('input change', function() { updateUI(); });
         
+        // ==========================================
+        //  CORE LOGIC
+        // ==========================================
+
         function validateSetup() {
             if (!$('#taa-instrument-select').val()) { Swal.fire('Info', "Select Instrument.", 'info'); return false; }
             if (!$('input[name="trade_dir"]:checked').val()) { Swal.fire('Info', "Please Select BUY or SELL.", 'info'); return false; }
@@ -132,9 +239,26 @@
 
         function startManualMode() {
             if (!validateSetup()) return;
-            renderTrade({ chart_name: '', top: 0, mid: 0, bot: 0, direction: 'BUY' });
-            $('#taa-upload-section').hide(); $('#taa-result-section').show(); $('#image-url').val(''); $('#manual-upload-box').show();
-            $('#span-entry, #span-target, #span-sl').hide(); $('#val-entry, #val-target, #val-sl').show();
+
+            // CHECK: Mandatory Image in 1st Form
+            var step1File = $('#taa-file-input')[0].files[0];
+            if (!step1File) {
+                Swal.fire('Required', 'Please Upload or Paste a Chart Image before proceeding.', 'warning');
+                return;
+            }
+
+            var dir = $('input[name="trade_dir"]:checked').val().toUpperCase();
+            $('#current-dir').val(dir);
+            
+            renderTrade({ chart_name: '', top: 0, mid: 0, bot: 0, direction: dir });
+            
+            // Switch Views
+            $('#taa-upload-section').hide(); 
+            $('#taa-result-section').show(); 
+            $('#image-url').val(''); // Empty because not uploaded to cloud yet
+            
+            $('#span-entry, #span-target, #span-sl').hide(); 
+            $('#val-entry, #val-target, #val-sl').show();
         }
 
         function processFile(file) {
@@ -145,8 +269,9 @@
             formData.append('image', file);
             formData.append('direction', dir);
 
-            $('#taa-upload-section').hide(); $('#taa-loader').show(); $('#taa-btn-manual').hide(); $('#taa-btn-analyze').hide();
-
+            $('#taa-upload-section').hide(); 
+            $('#taa-loader').show(); 
+            
             $.ajax({
                 url: taa_vars.ajaxurl, type: 'POST', data: formData, contentType: false, processData: false,
                 success: function(res) {
@@ -178,10 +303,12 @@
             $('#raw-top').val(Math.ceil(data.top || 0));
 
             var manDir = $('input[name="trade_dir"]:checked').val();
-            $('#current-dir').val((manDir === 'sell') ? 'SELL' : 'BUY');
-            if ($('#rule-mode').val() === 'BUY') $('#current-dir').val('BUY');
-            if ($('#rule-mode').val() === 'SELL') $('#current-dir').val('SELL');
+            var finalDir = (manDir === 'sell') ? 'SELL' : 'BUY';
+            if ($('#rule-mode').val() === 'BUY') finalDir = 'BUY';
+            if ($('#rule-mode').val() === 'SELL') finalDir = 'SELL';
+            $('#current-dir').val(finalDir);
 
+            applyRowOrder();
             updateUI();
             calculateLive();
             $('#taa-result-section').show();
@@ -257,20 +384,17 @@
             $('#res-rr').text("1 : " + rrVal);
         }
 
-        // [UPDATED] Validation Logic with Admin Rules
         function validatePrices() {
             var dir = $('#current-dir').val(); 
             var entry = parseFloat($('#val-entry').val()) || 0;
             var sl = parseFloat($('#val-sl').val()) || 0;
             var target = parseFloat($('#val-target').val()) || 0;
 
-            // 1. Zero Check
             if (entry <= 0 || sl <= 0 || target <= 0) {
                 Swal.fire('Invalid Prices', 'Entry, Stop Loss, and Target must be greater than 0.', 'error');
                 return false;
             }
 
-            // 2. Buy Logic
             if (dir === 'BUY') {
                 if (sl >= entry) {
                     Swal.fire('Logic Error (BUY)', 'Stop Loss must be LESS than Entry.', 'error');
@@ -282,7 +406,6 @@
                 }
             }
 
-            // 3. Sell Logic
             if (dir === 'SELL') {
                 if (sl <= entry) {
                     Swal.fire('Logic Error (SELL)', 'Stop Loss must be GREATER than Entry.', 'error');
@@ -294,12 +417,8 @@
                 }
             }
 
-            // [NEW] 4. Admin Validations
-            
-            // Calculate Risk/Profit/RR Raw values
             var riskPoints = Math.abs(entry - sl);
             var profitPoints = Math.abs(target - entry);
-            
             var lots = parseInt($('#calc-lot-size').val()) || 1;
             var totalLots = parseInt($('#display-total-lots').text()) || 1;
             var totalQty = lots * totalLots;
@@ -307,17 +426,13 @@
             var profitAmt = profitPoints * totalQty;
             var rrRatio = (riskPoints > 0) ? (profitPoints / riskPoints) : 0;
 
-            // Get Settings
             var minProfitReq = parseFloat($('#val-rule-min-profit').val()) || 0;
-            var minRrReq = parseFloat($('#val-rule-min-rr').val()) || 1; // Default 1:1 if invalid
+            var minRrReq = parseFloat($('#val-rule-min-rr').val()) || 1; 
 
-            // Check Profit
             if (profitAmt < minProfitReq) {
                 Swal.fire('Profit Too Low', 'Minimum Profit required is ₹' + minProfitReq.toLocaleString(), 'error');
                 return false;
             }
-
-            // Check RR Ratio
             if (rrRatio < minRrReq) {
                 Swal.fire('Low Risk:Reward', 'RR Ratio is 1:' + rrRatio.toFixed(1) + '. Minimum required is 1:' + minRrReq, 'error');
                 return false;
@@ -328,11 +443,16 @@
 
         function saveTradeToStaging() {
             var existingUrl = $('#image-url').val();
-            var manualFile = $('#taa-manual-file').length ? $('#taa-manual-file')[0].files[0] : null;
+            
+            // FETCH FILE FROM 1st FORM
+            var manualFile = $('#taa-file-input')[0].files[0];
 
-            if (!existingUrl && !manualFile) { Swal.fire('Required', "Image is mandatory.", 'warning'); return; }
+            // If we have neither a cloud URL (from AI) nor a local file (from Manual), Stop.
+            if (!existingUrl && !manualFile) { 
+                Swal.fire('Required', "Image is mandatory.", 'warning'); 
+                return; 
+            }
 
-            // Strike Check
             var strikeVal = getStrikeValue();
             var isStrikeReq = $('#rule-strike-req').val();
             if (isStrikeReq === 'YES' && (!strikeVal || strikeVal.trim() === '')) {
@@ -340,7 +460,6 @@
                 return;
             }
 
-            // Validate Logic Before Confirm
             if (!validatePrices()) return;
 
             Swal.fire({
@@ -367,7 +486,11 @@
 
                     var formData = new FormData();
                     for (var key in data) formData.append(key, data[key]);
-                    if (manualFile) formData.append('manual_image', manualFile);
+                    
+                    // If no cloud URL, we must send the file to be uploaded by backend
+                    if (!existingUrl && manualFile) {
+                        formData.append('manual_image', manualFile);
+                    }
 
                     $('#save-status').html('<span style="color:blue">Uploading...</span>');
 
@@ -378,7 +501,6 @@
                                 $('#save-status').html('<span style="color:green;">✔ Sent!</span>');
                                 Toast.fire({ icon: 'success', title: 'Submitted' });
                                 setTimeout(resetApp, 2000);
-                                notifyGlobalChange();
                             } else {
                                 $('#save-status').html('<span style="color:red">Error</span>');
                                 Swal.fire('Error', res.data, 'error');
@@ -392,12 +514,13 @@
         function resetApp() {
             $('#taa-result-section').hide();
             $('#taa-upload-section').show();
-            $('#taa-file-input').val('');
+            clearPreview();
             $('#image-url').val('');
-            $('#manual-upload-box').hide();
-            $('#taa-manual-file').val('');
+            $('#taa-manual-file').val(''); // Clear deprecated input just in case
             $('#save-status').html('');
             $('#taa-pre-strike').val('');
+            
+            updateRules();
             
             var mode = $('#taag-global-mode').val() || 'both';
             $('#taa-btn-analyze').toggle(mode !== 'manual');
