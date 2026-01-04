@@ -7,19 +7,19 @@ class TAA_Ajax_Marketing {
         // 1. Telegram
         add_action( 'wp_ajax_taa_send_marketing_telegram', [ $this, 'send_to_telegram' ] );
         
-        // 2. Remote Publish (Upload)
+        // 2. Remote Publish (Standard Upload - No Overwrite)
         add_action( 'wp_ajax_taa_publish_marketing_image', [ $this, 'publish_image_remote' ] );
         
         // 3. Remote Delete
         add_action( 'wp_ajax_taa_delete_published_image', [ $this, 'delete_image_remote' ] );
         
-        // 4. Remote Fetch (Proxy) - Fixes "Not Showing" error
+        // 4. Remote Fetch (Proxy)
         add_action( 'wp_ajax_taa_load_published_gallery', [ $this, 'load_gallery_remote' ] );
         add_action( 'wp_ajax_nopriv_taa_load_published_gallery', [ $this, 'load_gallery_remote' ] );
     }
 
     /**
-     * Publish Image (Proxy to Remote Server)
+     * Publish Image (Proxy to Remote Server - Standard Upload)
      */
     public function publish_image_remote() {
         check_ajax_referer( 'taa_nonce', 'security' );
@@ -27,9 +27,13 @@ class TAA_Ajax_Marketing {
         
         if ( empty( $_FILES['file'] ) ) wp_send_json_error( 'No file received' );
 
-        $name = sanitize_text_field( $_POST['name'] ); 
+        // 1. Prepare Data
+        // We still sanitize and upper-case the name for consistency
+        $raw_name = sanitize_text_field( $_POST['name'] );
+        $name = trim(strtoupper($raw_name));
         $date = sanitize_text_field( $_POST['date'] ); 
 
+        // 2. Direct Upload (No check, No delete)
         $remote_url = 'https://image.rdalgo.in/wp-json/rdalgo/v1/upload';
         $boundary = wp_generate_password( 24 );
         $headers  = array( 'content-type' => 'multipart/form-data; boundary=' . $boundary );
@@ -50,6 +54,7 @@ class TAA_Ajax_Marketing {
         }
         $payload .= '--' . $boundary . '--';
 
+        // 3. Send Request
         $response = wp_remote_post( $remote_url, array(
             'headers' => $headers, 'body' => $payload, 'timeout' => 45
         ));
@@ -64,14 +69,13 @@ class TAA_Ajax_Marketing {
     }
 
     /**
-     * Fetch Gallery (Proxy to avoid CORS)
+     * Load Gallery
      */
     public function load_gallery_remote() {
-        // No security check needed for public gallery view, or add check_ajax_referer if private
         $date = sanitize_text_field( $_POST['date'] );
         if(empty($date)) $date = current_time('Y-m-d');
 
-        $remote_url = 'https://image.rdalgo.in/wp-json/rdalgo/v1/images?date=' . $date;
+        $remote_url = 'https://image.rdalgo.in/wp-json/rdalgo/v1/images?date=' . $date . '&_t=' . time();
         $response = wp_remote_get( $remote_url, array( 'timeout' => 15 ) );
 
         if ( is_wp_error( $response ) ) wp_send_json_error( 'Fetch Error: ' . $response->get_error_message() );
@@ -94,7 +98,6 @@ class TAA_Ajax_Marketing {
         $file_date = sanitize_text_field( $_POST['trade_date'] ); 
         if ( ! $id ) wp_send_json_error( 'ID required' );
 
-        // Permission Logic
         $current_user = wp_get_current_user();
         $allowed_roles = get_option('taag_direct_add_roles', []);
         if(!is_array($allowed_roles)) $allowed_roles = [];

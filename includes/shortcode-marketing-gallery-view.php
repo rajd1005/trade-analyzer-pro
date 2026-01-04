@@ -1,11 +1,11 @@
 <?php
 /**
  * Shortcode View: Published Marketing Gallery
- * Fetches data via Local AJAX Proxy to avoid CORS.
+ * View: TABLE (Matches 2nd Plugin Logic)
  */
 if ( ! defined( 'ABSPATH' ) ) exit;
 
-// Determine if user can always delete (Privileged Role or Admin)
+// 1. Permission Logic for "Privileged Users"
 $current_user = wp_get_current_user();
 $allowed_roles = get_option('taag_direct_add_roles', []);
 if(!is_array($allowed_roles)) $allowed_roles = [];
@@ -22,120 +22,172 @@ if ( current_user_can('manage_options') ) {
     }
 }
 
-$today = current_time('Y-m-d');
+// 2. Server Today (For logic sync)
+$server_today = current_time('Y-m-d');
 ?>
 
-<div class="taa-dashboard-wrapper" style="padding: 20px;">
-    <div class="taa-staging-header">
-        <h2>Published Marketing Images</h2>
-        <div style="display:flex; gap:10px;">
-            <input type="date" id="taa-gal-date" class="taa-date-input" value="<?php echo esc_attr($today); ?>">
-            <button id="taa-gal-refresh" class="taa-refresh-btn">↻ Refresh</button>
-        </div>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+
+<div class="taa-dashboard-wrapper" style="max-width:1000px; margin:auto; padding:20px;">
+    
+    <div style="margin-bottom:20px;">
+        <label><strong>Filter by Trade Date:</strong></label>
+        <input type="text" id="taaGalDate" class="flatpickr" style="margin-bottom:15px; padding:6px 10px; border:1px solid #ccc; border-radius:4px;" readonly>
+        <small id="taaAutoLoadStatus" style="color:green; display:none; margin-left:10px;">(Auto-updating...)</small>
     </div>
 
-    <div id="taa-gallery-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 20px; padding: 20px 0;">
-        <p style="grid-column: 1/-1; text-align:center;">Loading...</p>
-    </div>
+    <div id="taaGalContainer" style="overflow-x:auto;">
+        </div>
+
+</div>
+
+<div id="taaImgModal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:#000000c9;align-items:center;justify-content:center;z-index:99999;">
+    <div onclick="closeTaaModal()" style="position:absolute;top:20px;right:20px;color:#fff;font-size:24px;cursor:pointer;">✖</div>
+    <img id="taaModalImg" src="" style="max-width:90%;max-height:90%;">
 </div>
 
 <script>
-jQuery(document).ready(function($) {
-    const isPrivileged = <?php echo $is_privileged ? 'true' : 'false'; ?>;
-    const todayStr = "<?php echo $today; ?>";
+const taaIsPrivileged = <?php echo $is_privileged ? 'true' : 'false'; ?>;
+const taaAjaxUrl = "<?php echo admin_url('admin-ajax.php'); ?>";
+const taaNonce = "<?php echo wp_create_nonce('taa_nonce'); ?>";
+const taaServerToday = "<?php echo $server_today; ?>";
 
-    loadGallery();
+function closeTaaModal() {
+    document.getElementById('taaImgModal').style.display = 'none';
+    document.getElementById('taaModalImg').src = '';
+}
 
-    $('#taa-gal-refresh').on('click', loadGallery);
-    $('#taa-gal-date').on('change', loadGallery);
+function openTaaModal(url) {
+    document.getElementById('taaModalImg').src = url;
+    document.getElementById('taaImgModal').style.display = 'flex';
+}
 
-    function loadGallery() {
-        const date = $('#taa-gal-date').val();
-        const $grid = $('#taa-gallery-grid');
-        
-        $grid.html('<p style="grid-column: 1/-1; text-align:center;">Fetching images...</p>');
+async function loadTaaGallery(isAutoLoad = false) {
+    const container = document.getElementById('taaGalContainer');
+    if(!isAutoLoad) container.innerHTML = "🔄 Loading...";
+    else document.getElementById('taaAutoLoadStatus').style.display = 'inline';
 
-        // Call Local Proxy to avoid CORS
-        $.post(taa_vars.ajaxurl, {
+    const date = document.getElementById('taaGalDate').value;
+    
+    if (!date) {
+        if(!isAutoLoad) container.innerHTML = "<p style='color:red;'>❌ Please select a date</p>";
+        return;
+    }
+
+    try {
+        jQuery.post(taaAjaxUrl, {
             action: 'taa_load_published_gallery',
             date: date
         }, function(response) {
-            $grid.empty();
-
+            
             if (!response.success) {
-                $grid.html('<p style="grid-column: 1/-1; text-align:center; color:red;">' + (response.data || 'Error loading gallery') + '</p>');
+                if(!isAutoLoad) container.innerHTML = "<p style='color:red;'>❌ " + (response.data || 'Error loading') + "</p>";
                 return;
             }
 
-            const data = response.data; // Expecting array of {id, name, image_url, trade_date}
-
-            if (!data || data.length === 0) {
-                $grid.html('<p style="grid-column: 1/-1; text-align:center;">No published images found for ' + date + '.</p>');
+            const images = response.data; 
+            
+            if (!images || images.length === 0) {
+                if(!isAutoLoad) container.innerHTML = "<p>No images found for " + date + ".</p>";
                 return;
             }
 
-            // Loop through images
-            data.forEach(function(img) {
-                // DELETE LOGIC: Allowed if (Date is Today) OR (User is Privileged)
-                let canDelete = false;
-                if (img.trade_date === todayStr) {
-                    canDelete = true;
-                } else if (isPrivileged) {
-                    canDelete = true;
-                }
+            const table = document.createElement('table');
+            table.style.width = '100%';
+            table.style.borderCollapse = 'collapse';
+            table.className = 'taa-staging-table'; 
+            table.innerHTML = `
+                <thead>
+                    <tr style="background:#f0f0f0;">
+                        <th style="padding:8px;border:1px solid #ccc;">Trade Date</th>
+                        <th style="padding:8px;border:1px solid #ccc;">Name</th>
+                        <th style="padding:8px;border:1px solid #ccc;">View</th>
+                        <th style="padding:8px;border:1px solid #ccc;">Delete</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            `;
 
-                let html = `
-                    <div style="border:1px solid #ddd; border-radius:8px; overflow:hidden; background:#fff; box-shadow:0 2px 5px rgba(0,0,0,0.05);">
-                        <a href="${img.image_url}" target="_blank" style="display:block; height:150px; overflow:hidden;">
-                            <img src="${img.image_url}" style="width:100%; height:100%; object-fit:cover;">
-                        </a>
-                        <div style="padding:10px;">
-                            <strong style="display:block; font-size:13px; margin-bottom:5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${img.name}</strong>
-                            <div style="display:flex; justify-content:space-between; align-items:center;">
-                                <a href="${img.image_url}" target="_blank" style="font-size:12px; color:#0073aa; text-decoration:none;">View</a>
-                                ${ canDelete ? 
-                                    `<button class="taa-gal-del" data-id="${img.id}" data-date="${img.trade_date}" style="background:#dc3545; color:#fff; border:none; border-radius:3px; padding:2px 8px; cursor:pointer; font-size:11px;">Delete</button>` 
-                                    : '<span style="font-size:10px; color:#999;" title="Only Admin can delete past dates">Locked</span>' 
-                                }
-                            </div>
-                        </div>
-                    </div>
+            images.forEach(img => {
+                const row = document.createElement('tr');
+                const canDelete = taaIsPrivileged || (img.trade_date === taaServerToday);
+
+                row.innerHTML = `
+                    <td style="padding:8px;border:1px solid #ccc;text-align:center;">${img.trade_date}</td>
+                    <td style="padding:8px;border:1px solid #ccc;text-align:center;">${img.name}</td>
+                    <td style="padding:8px;border:1px solid #ccc;text-align:center;">
+                        <button onclick="openTaaModal('${img.image_url}')" style="padding:5px 10px; cursor:pointer;">View</button>
+                    </td>
+                    <td style="padding:8px;border:1px solid #ccc;text-align:center;">
+                        ${canDelete
+                            ? `<button class="taa-gal-del-btn" data-id="${img.id}" data-date="${img.trade_date}" style="padding:5px 10px;background:red;color:white;border:none;border-radius:3px;cursor:pointer;">Delete</button>`
+                            : '<span style="color:#aaa;">Locked</span>'}
+                    </td>
                 `;
-                $grid.append(html);
+                table.querySelector('tbody').appendChild(row);
             });
 
+            container.innerHTML = '';
+            container.appendChild(table);
+
         }).fail(function() {
-            $grid.html('<p style="grid-column: 1/-1; text-align:center; color:red;">Server Connection Error</p>');
+            if(!isAutoLoad) container.innerHTML = "<p style='color:red;'>❌ Server Connection Error</p>";
+        }).always(function(){
+            document.getElementById('taaAutoLoadStatus').style.display = 'none';
         });
+
+    } catch (err) {
+        console.error(err);
     }
+}
 
-    // Delete Handler
-    $(document).on('click', '.taa-gal-del', function(e) {
+document.addEventListener('click', function(e) {
+    if(e.target && e.target.classList.contains('taa-gal-del-btn')) {
         e.preventDefault();
-        if(!confirm("Are you sure? This will delete the file from the remote server.")) return;
+        const id = e.target.getAttribute('data-id');
+        const date = e.target.getAttribute('data-date');
+        deleteTaaImage(id, date, e.target);
+    }
+});
 
-        var $btn = $(this);
-        var id = $btn.data('id');
-        var date = $btn.data('date');
+function deleteTaaImage(id, date, btn) {
+    if (!confirm("Are you sure you want to delete this image?")) return;
+    btn.textContent = '...'; btn.disabled = true;
 
-        $btn.text('...').prop('disabled', true);
-
-        $.post(taa_vars.ajaxurl, {
-            action: 'taa_delete_published_image',
-            security: taa_vars.nonce,
-            id: id,
-            trade_date: date
-        }, function(res) {
-            if(res.success) {
-                $btn.closest('div').parent().fadeOut(); // Remove card from view
-            } else {
-                alert('Error: ' + (res.data || 'Unknown'));
-                $btn.text('Delete').prop('disabled', false);
-            }
-        }).fail(function() {
-            alert('Server Error');
-            $btn.text('Delete').prop('disabled', false);
-        });
+    jQuery.post(taaAjaxUrl, {
+        action: 'taa_delete_published_image',
+        security: taaNonce,
+        id: id,
+        trade_date: date
+    }, function(res) {
+        if (res.success) {
+            const row = btn.closest('tr');
+            row.style.opacity = '0';
+            setTimeout(() => row.remove(), 500);
+        } else {
+            alert("❌ Delete failed: " + (res.data || ''));
+            btn.textContent = 'Delete'; btn.disabled = false;
+        }
+    }).fail(function() {
+        alert("❌ Network Error");
+        btn.textContent = 'Delete'; btn.disabled = false;
     });
+}
+
+document.addEventListener('taa_gallery_refresh', function() {
+    loadTaaGallery(false);
+});
+
+document.addEventListener('DOMContentLoaded', function () {
+    flatpickr("#taaGalDate", {
+        dateFormat: "Y-m-d",
+        defaultDate: taaServerToday,
+        onChange: function() { loadTaaGallery(false); }
+    });
+    loadTaaGallery(false);
+    setInterval(function() {
+        loadTaaGallery(true);
+    }, 10000);
 });
 </script>
