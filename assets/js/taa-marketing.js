@@ -2,7 +2,7 @@
     'use strict';
 
     $(document).ready(function() {
-        console.log("TAA v33.6: Marketing (Position Updates + Small Text Gap)");
+        console.log("TAA v33.7: Marketing (Trade Date Fix)");
 
         if (typeof taa_mkt_vars === 'undefined') {
             console.error("TAA ERROR: taa_mkt_vars missing.");
@@ -110,8 +110,6 @@
             var isBuy = (activeTradeData.dir.toUpperCase() === 'BUY');
             
             // A. Signal Image Position
-            // BUY: Bottom Middle (580)
-            // SELL: Top Middle (160) - [Requested Change]
             if (isBuy) {
                 addDraggableImage(buySignalUrl, 563, 580, 165, true); 
             } else {
@@ -119,27 +117,20 @@
             }
 
             // B. Tag Images
-            // tag.png -> Left Top [Requested Change]
             addDraggableImage(tagUrl, 40, 140, 300, false);
-            
-            // tag-contact.png -> Left Low [Requested Change]
             addDraggableImage(contactTagUrl, 30, 615, 150, false);
             
-            // C. Text Positions (Gap Reduced)
+            // C. Text Positions
             var xPos = 880; 
-            // Previous: 180, 400, 620 (Gap ~220)
-            // New: 320, 440, 560 (Gap 120) [Requested Change]
             var yTop = 320;
             var yMid = 440;
             var yBot = 560;
 
             if (isBuy) {
-                // BUY: Target (Top), Entry (Mid), SL (Low)
                 addDraggableText("TARGET", activeTradeData.target, "#FFFFFF", xPos, yTop); 
                 addDraggableText("ENTRY", activeTradeData.entry, "#FFFFFF", xPos, yMid);    
                 addDraggableText("SL", activeTradeData.sl, "#FFFFFF", xPos, yBot);     
             } else {
-                // SELL: SL (Top), Entry (Mid), Target (Low)
                 addDraggableText("SL", activeTradeData.sl, "#FFFFFF", xPos, yTop);     
                 addDraggableText("ENTRY", activeTradeData.entry, "#FFFFFF", xPos, yMid);    
                 addDraggableText("TARGET", activeTradeData.target, "#FFFFFF", xPos, yBot); 
@@ -185,7 +176,11 @@
                     formData.append('action', 'taa_publish_marketing_image');
                     formData.append('security', taa_vars.nonce);
                     
-                    var dateStr = taa_mkt_vars.today; 
+                    // [FIX] Use Trade Date if available, otherwise Today
+                    // We check common date field names: entry_date, date, trade_date
+                    var tradeDate = activeTradeData.entry_date || activeTradeData.date || activeTradeData.trade_date || taa_mkt_vars.today;
+                    // Ensure we only get the YYYY-MM-DD part (in case of datetime string)
+                    var dateStr = tradeDate.split(' ')[0];
                     
                     // NAME: Chart name + Strike + DIR (ALL CAPS)
                     var rawName = activeTradeData.inst + ' ' + activeTradeData.strike + ' ' + activeTradeData.dir;
@@ -205,8 +200,8 @@
                         contentType: false,
                         success: function(response) {
                             if(response.success) {
-                                if(typeof Swal !== 'undefined') Swal.fire('Published!', 'Image uploaded to server.', 'success');
-                                else alert('Published Successfully');
+                                if(typeof Swal !== 'undefined') Swal.fire('Published!', 'Image uploaded to server for ' + dateStr, 'success');
+                                else alert('Published Successfully for ' + dateStr);
                                 
                                 $(document).trigger('taa_gallery_refresh');
                             } else {

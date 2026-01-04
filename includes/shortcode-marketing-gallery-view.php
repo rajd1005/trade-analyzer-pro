@@ -59,7 +59,9 @@ function closeTaaModal() {
 }
 
 function openTaaModal(url) {
-    document.getElementById('taaModalImg').src = url;
+    // [FIX] Add timestamp to bust cache when viewing re-uploaded images
+    var cacheBuster = "?t=" + new Date().getTime();
+    document.getElementById('taaModalImg').src = url + cacheBuster;
     document.getElementById('taaImgModal').style.display = 'flex';
 }
 

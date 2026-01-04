@@ -49,7 +49,7 @@ class TAA_Shortcodes {
 	 * Register and Enqueue Scripts/Styles based on Shortcode presence
 	 */
 	public function register_and_load_assets() {
-		$ver = '33.0'; // Updated Version
+		$ver = '33.1'; // Updated Version for Fixes
 
 		// --- External Libraries ---
 		// SweetAlert2
@@ -144,6 +144,25 @@ class TAA_Shortcodes {
 	public function render_analyzer() {
 		// Input Mode Check (AI/Manual)
 		$input_mode = get_option('taag_input_mode', 'ai');
+		
+		// [FIX] Define Default Lots
+		$global_lots = get_option('taag_default_total_lots', '6');
+
+		// [FIX] Parse Instruments List for Dropdown
+		$raw_instruments = get_option('taag_instruments_list', '');
+		$lines = array_filter(explode("\n", $raw_instruments));
+		$instruments = [];
+		foreach($lines as $line) {
+			$parts = explode('|', trim($line));
+			if(count($parts) >= 2) {
+				// The value passed to JS needs to be the full config string
+				$instruments[] = [
+					'name'  => trim($parts[0]),
+					'value' => trim($line)
+				];
+			}
+		}
+
 		ob_start(); 
 		include TAA_PLUGIN_DIR . 'includes/shortcode-analyzer-view.php'; 
 		return ob_get_clean();
