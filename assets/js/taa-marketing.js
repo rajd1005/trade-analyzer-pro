@@ -2,7 +2,7 @@
     'use strict';
 
     $(document).ready(function() {
-        console.log("TAA v30.9.2: Marketing (Telegram Integrated)");
+        console.log("TAA v31.0: Marketing (Telegram + Remote Publish)");
 
         if (typeof taa_mkt_vars === 'undefined') {
             console.error("TAA ERROR: taa_mkt_vars missing.");
@@ -22,7 +22,7 @@
         var tagUrl = basePath + 'tag.png';
         var contactTagUrl = basePath + 'tag-contact.png';
 
-        // --- MODAL HTML (Updated with Telegram Button) ---
+        // --- MODAL HTML (Added Publish Button) ---
         var modalHtml = `
             <div id="taa-mkt-overlay" class="taa-mkt-overlay">
                 <div class="taa-mkt-modal">
@@ -32,10 +32,13 @@
                     <div class="taa-mkt-toolbar">
                         <div class="taa-mkt-title">Marketing Preview (Drag elements to position)</div>
                         <div class="taa-mkt-actions">
-                            <button id="taa-mkt-telegram" class="taa-mkt-btn taa-btn-telegram" style="background-color:#0088cc; color:#fff; margin-right:10px;">
-                                ✈ Send Telegram
+                            <button id="taa-mkt-publish" class="taa-mkt-btn" style="background-color:#28a745; color:#fff; margin-right:10px;">
+                                ☁ Publish
                             </button>
-                            <button id="taa-mkt-dl" class="taa-mkt-btn taa-btn-download">⬇ Download Image</button>
+                            <button id="taa-mkt-telegram" class="taa-mkt-btn taa-btn-telegram" style="background-color:#0088cc; color:#fff; margin-right:10px;">
+                                ✈ Telegram
+                            </button>
+                            <button id="taa-mkt-dl" class="taa-mkt-btn taa-btn-download">⬇ Download</button>
                             <button id="taa-mkt-close" class="taa-mkt-btn taa-btn-close">Close</button>
                         </div>
                     </div>
@@ -79,19 +82,12 @@
 
             // 5. Load Chart Image
             mainChartImg = new Image();
-            // CORS support for external images if needed
             mainChartImg.crossOrigin = "Anonymous"; 
-            mainChartImg.onload = function() { 
-                drawCanvas(); 
-            };
-            mainChartImg.onerror = function() {
-                console.error("Failed to load chart image:", activeTradeData.img);
-            };
+            mainChartImg.onload = function() { drawCanvas(); };
+            mainChartImg.onerror = function() { console.error("Failed to load chart image:", activeTradeData.img); };
             mainChartImg.src = activeTradeData.img;
 
-            if (mainChartImg.complete) {
-                drawCanvas();
-            }
+            if (mainChartImg.complete) drawCanvas();
         });
 
         // --- CLOSE HANDLER ---
@@ -101,40 +97,36 @@
             }); 
         });
 
-        // --- TELEGRAM SEND HANDLER (NEW) ---
-        $('#taa-mkt-telegram').on('click', function() {
+        // --- PUBLISH HANDLER (NEW) ---
+        $('#taa-mkt-publish').on('click', function() {
             var $btn = $(this);
             var originalText = $btn.html();
             
-            // 1. Deselect any active item for clean screenshot
             activeDragIndex = -1;
             drawCanvas();
 
-            $btn.prop('disabled', true).html('⌛ Sending...');
+            $btn.prop('disabled', true).html('☁ Publishing...');
 
             var canvas = document.getElementById('taa-mkt-canvas');
             
-            // 2. Convert Canvas to Blob
             canvas.toBlob(function(blob) {
-                if (!blob) {
-                    alert('Error generating image.');
-                    $btn.prop('disabled', false).html(originalText);
-                    return;
-                }
+                if (!blob) { alert('Error generating image.'); $btn.prop('disabled', false).html(originalText); return; }
 
                 var formData = new FormData();
-                formData.append('action', 'taa_send_marketing_telegram');
-                formData.append('security', taa_vars.nonce); // Security Nonce
-                formData.append('image', blob, 'trade_signal.jpg');
+                formData.append('action', 'taa_publish_marketing_image');
+                formData.append('security', taa_vars.nonce);
                 
-                // Construct a caption
-                var caption = "🔔 *" + activeTradeData.inst + "* (" + activeTradeData.dir + ")\n" +
-                              "Entry: " + activeTradeData.entry + "\n" +
-                              "Target: " + activeTradeData.target + "\n" + 
-                              "SL: " + activeTradeData.sl;
-                formData.append('caption', caption);
+                // DATA PREPARATION FOR REMOTE UPLOAD
+                // 2nd Plugin Expects: 'file', 'name', 'date'
+                var dateStr = new Date().toISOString().slice(0, 10); // Use Today
+                
+                // Construct Filename
+                var fileName = activeTradeData.inst.replace(/\s+/g, '_') + '_' + dateStr + '.jpg';
+                
+                formData.append('file', blob, fileName); // Key must be 'file'
+                formData.append('name', activeTradeData.inst);
+                formData.append('date', dateStr);
 
-                // 3. Send AJAX
                 $.ajax({
                     url: taa_vars.ajaxurl,
                     type: 'POST',
@@ -143,32 +135,69 @@
                     contentType: false,
                     success: function(response) {
                         if(response.success) {
-                            // Using SweetAlert if available (from your enqueue-scripts), else standard alert
-                            if(typeof Swal !== 'undefined') {
-                                Swal.fire('Sent!', 'Trade setup sent to Telegram successfully.', 'success');
-                            } else {
-                                alert('Sent to Telegram successfully!');
-                            }
+                            if(typeof Swal !== 'undefined') Swal.fire('Published!', 'Image sent to remote server.', 'success');
+                            else alert('Published Successfully');
                         } else {
-                            if(typeof Swal !== 'undefined') {
-                                Swal.fire('Error', response.data || 'Unknown error', 'error');
-                            } else {
-                                alert('Error: ' + (response.data || 'Unknown error'));
-                            }
+                            var msg = response.data || 'Publish failed';
+                            if(typeof Swal !== 'undefined') Swal.fire('Error', msg, 'error');
+                            else alert('Error: ' + msg);
                         }
                     },
                     error: function(xhr, status, error) {
-                        alert('AJAX Error: ' + error);
+                        alert('Network Error: ' + error);
                     },
                     complete: function() {
                         $btn.prop('disabled', false).html(originalText);
                     }
                 });
-
-            }, 'image/jpeg', 0.95); // 95% Quality JPG
+            }, 'image/jpeg', 0.95);
         });
 
-        // --- HELPERS ---
+        // --- TELEGRAM SEND HANDLER ---
+        $('#taa-mkt-telegram').on('click', function() {
+            var $btn = $(this);
+            var originalText = $btn.html();
+            
+            activeDragIndex = -1;
+            drawCanvas();
+
+            $btn.prop('disabled', true).html('⌛ Sending...');
+
+            var canvas = document.getElementById('taa-mkt-canvas');
+            
+            canvas.toBlob(function(blob) {
+                if (!blob) { alert('Error generating image.'); $btn.prop('disabled', false).html(originalText); return; }
+
+                var formData = new FormData();
+                formData.append('action', 'taa_send_marketing_telegram');
+                formData.append('security', taa_vars.nonce); 
+                formData.append('image', blob, 'trade_signal.jpg');
+                
+                var caption = "🔔 *" + activeTradeData.inst + "* (" + activeTradeData.dir + ")\n" +
+                              "Entry: " + activeTradeData.entry + "\n" +
+                              "Target: " + activeTradeData.target + "\n" + 
+                              "SL: " + activeTradeData.sl;
+                formData.append('caption', caption);
+
+                $.ajax({
+                    url: taa_vars.ajaxurl, type: 'POST', data: formData, processData: false, contentType: false,
+                    success: function(response) {
+                        if(response.success) {
+                            if(typeof Swal !== 'undefined') Swal.fire('Sent!', 'Trade setup sent to Telegram.', 'success');
+                            else alert('Sent!');
+                        } else {
+                            if(typeof Swal !== 'undefined') Swal.fire('Error', response.data || 'Unknown error', 'error');
+                            else alert('Error: ' + response.data);
+                        }
+                    },
+                    error: function(xhr, status, error) { alert('AJAX Error: ' + error); },
+                    complete: function() { $btn.prop('disabled', false).html(originalText); }
+                });
+
+            }, 'image/jpeg', 0.95); 
+        });
+
+        // --- HELPERS (Same as before) ---
         function addDraggableImage(url, x, y, w, centered) {
             var item = { type: 'image', x: x, y: y, w: w, h: 0, img: new Image(), loaded: false };
             item.img.crossOrigin = "Anonymous";
@@ -254,11 +283,7 @@
             ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 1; ctx.strokeRect(imgX, imgY, imgW, imgH);
             
             if (mainChartImg && mainChartImg.complete && mainChartImg.naturalWidth !== 0) {
-                try {
-                    ctx.drawImage(mainChartImg, imgX, imgY, imgW, imgH);
-                } catch(e) {
-                    ctx.fillStyle = "#222"; ctx.fillText("CORS Error: Canvas Tainted", W/2, imgY + imgH/2);
-                }
+                try { ctx.drawImage(mainChartImg, imgX, imgY, imgW, imgH); } catch(e) { }
             } else {
                 ctx.fillStyle = "#222"; ctx.fillRect(imgX, imgY, imgW, imgH);
                 ctx.fillStyle = "#555"; ctx.font = "20px Arial"; ctx.textAlign = "center";
@@ -284,11 +309,8 @@
                     ctx.restore();
                 }
                 if (idx === activeDragIndex) {
-                    ctx.save();
-                    ctx.strokeStyle = "#00FFFF"; ctx.lineWidth = 2;
-                    ctx.setLineDash([6, 4]); 
-                    ctx.strokeRect(it.x - 5, it.y - 5, it.w + 10, it.h + 10); 
-                    ctx.restore();
+                    ctx.save(); ctx.strokeStyle = "#00FFFF"; ctx.lineWidth = 2; ctx.setLineDash([6, 4]); 
+                    ctx.strokeRect(it.x - 5, it.y - 5, it.w + 10, it.h + 10); ctx.restore();
                 }
             });
 
@@ -297,7 +319,6 @@
             var startY = imgY + imgH + 15; 
             ctx.fillStyle = "#FFC107"; ctx.fillRect(0, startY, W, H - startY);
             
-            var cleanProfit = activeTradeData.profit.replace(/[^0-9.,₹-]/g, ''); 
             var metrics = [ 
                 {l:"Profit", v: activeTradeData.profit},
                 {l:"Risk", v: activeTradeData.risk},
@@ -321,7 +342,6 @@
             var canvas = document.getElementById('taa-mkt-canvas');
             var link = document.createElement('a');
             var fn = (activeTradeData.inst + "_" + activeTradeData.strike).replace(/\s+/g,'_').replace(/[^a-zA-Z0-9_]/g, '');
-            if(!fn) fn = "Trade_Signal";
             link.download = fn + '.jpg';
             link.href = canvas.toDataURL("image/jpeg", 1.0);
             link.click();
