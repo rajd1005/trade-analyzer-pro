@@ -4,31 +4,34 @@ if ( ! defined( 'ABSPATH' ) ) exit;
 class TAA_Ajax_Marketing {
 
     public function __construct() {
-        // 1. Telegram
+        // 1. Telegram - Added nopriv for guests
         add_action( 'wp_ajax_taa_send_marketing_telegram', [ $this, 'send_to_telegram' ] );
+        add_action( 'wp_ajax_nopriv_taa_send_marketing_telegram', [ $this, 'send_to_telegram' ] );
         
-        // 2. Remote Publish (Standard Upload - No Overwrite)
+        // 2. Remote Publish - Added nopriv for guests
         add_action( 'wp_ajax_taa_publish_marketing_image', [ $this, 'publish_image_remote' ] );
+        add_action( 'wp_ajax_nopriv_taa_publish_marketing_image', [ $this, 'publish_image_remote' ] );
         
-        // 3. Remote Delete
+        // 3. Remote Delete - Added nopriv for guests
         add_action( 'wp_ajax_taa_delete_published_image', [ $this, 'delete_image_remote' ] );
+        add_action( 'wp_ajax_nopriv_taa_delete_published_image', [ $this, 'delete_image_remote' ] );
         
-        // 4. Remote Fetch (Proxy)
+        // 4. Remote Fetch (Proxy) - Already had nopriv, kept as is
         add_action( 'wp_ajax_taa_load_published_gallery', [ $this, 'load_gallery_remote' ] );
         add_action( 'wp_ajax_nopriv_taa_load_published_gallery', [ $this, 'load_gallery_remote' ] );
     }
 
     /**
      * Publish Image (Proxy to Remote Server - Standard Upload)
+     * RESTRICTIONS REMOVED: Nonce, Login Check
      */
     public function publish_image_remote() {
-        check_ajax_referer( 'taa_nonce', 'security' );
-        if ( ! is_user_logged_in() ) wp_send_json_error( 'Please login' );
+        // Removed: check_ajax_referer( 'taa_nonce', 'security' );
+        // Removed: if ( ! is_user_logged_in() ) ...
         
         if ( empty( $_FILES['file'] ) ) wp_send_json_error( 'No file received' );
 
         // 1. Prepare Data
-        // We still sanitize and upper-case the name for consistency
         $raw_name = sanitize_text_field( $_POST['name'] );
         $name = trim(strtoupper($raw_name));
         $date = sanitize_text_field( $_POST['date'] ); 
@@ -70,6 +73,7 @@ class TAA_Ajax_Marketing {
 
     /**
      * Load Gallery
+     * No changes needed (was already open)
      */
     public function load_gallery_remote() {
         $date = sanitize_text_field( $_POST['date'] );
@@ -89,31 +93,19 @@ class TAA_Ajax_Marketing {
 
     /**
      * Delete Image
+     * RESTRICTIONS REMOVED: Nonce, Login Check, Role Check, Date Check
      */
     public function delete_image_remote() {
-        check_ajax_referer( 'taa_nonce', 'security' );
-        if ( ! is_user_logged_in() ) wp_send_json_error( 'Unauthorized' );
+        // Removed: check_ajax_referer( 'taa_nonce', 'security' );
+        // Removed: if ( ! is_user_logged_in() ) ...
 
         $id = intval( $_POST['id'] ); 
-        $file_date = sanitize_text_field( $_POST['trade_date'] ); 
+        // $file_date not needed for restriction anymore
+        
         if ( ! $id ) wp_send_json_error( 'ID required' );
 
-        $current_user = wp_get_current_user();
-        $allowed_roles = get_option('taag_direct_add_roles', []);
-        if(!is_array($allowed_roles)) $allowed_roles = [];
-        
-        $is_privileged = false;
-        if ( current_user_can('manage_options') ) $is_privileged = true;
-        else {
-            foreach($current_user->roles as $role) {
-                if(in_array($role, $allowed_roles)) { $is_privileged = true; break; }
-            }
-        }
-
-        $today = current_time('Y-m-d');
-        if ( $file_date !== $today && ! $is_privileged ) {
-            wp_send_json_error( 'Permission Denied: Past images restricted.' );
-        }
+        // Removed: Role checking and "Past Date" restriction logic.
+        // Now anyone can delete any image ID.
 
         $remote_url = 'https://image.rdalgo.in/wp-json/rdalgo/v1/delete';
         $response = wp_remote_post( $remote_url, array( 'body' => array( 'id' => $id ) ) );
@@ -129,13 +121,16 @@ class TAA_Ajax_Marketing {
 
     /**
      * Send to Telegram
+     * RESTRICTIONS REMOVED: Nonce, Capability (manage_options/edit_posts)
      */
     public function send_to_telegram() {
-        check_ajax_referer( 'taa_nonce', 'security' );
+        // Removed: check_ajax_referer( 'taa_nonce', 'security' );
         
-        if ( ! current_user_can( 'manage_options' ) && ! current_user_can( 'edit_posts' ) ) {
+        // Removed: Capability Check
+        /* if ( ! current_user_can( 'manage_options' ) && ! current_user_can( 'edit_posts' ) ) {
             wp_send_json_error( 'Unauthorized.' );
         }
+        */
 
         $token   = get_option( 'taag_telegram_token' );
         $chat_id = get_option( 'taag_telegram_chat_id' );
