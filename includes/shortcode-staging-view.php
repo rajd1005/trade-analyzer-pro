@@ -51,7 +51,7 @@ if (!$is_ajax):
             <thead>
                 <tr>
                     <th>#</th>
-                    <th>Time</th><th>Dir</th><th>Instrument</th><th>Strike</th><th>Entry</th><th>Target</th><th>SL</th><th>Risk</th><th>RR</th><th>Profit</th><th>Chart</th><th>Actions</th>
+                    <th>Time</th><th>Dir</th><th>Instrument</th><th>Strike</th><th>Entry</th><th>Target</th><th>SL</th><th>Risk</th><th>RR</th><th>Profit</th><th>Actions</th><th>Chart</th>
                 </tr>
             </thead>
             <tbody class="taa-table-body">
@@ -103,15 +103,6 @@ if (!$is_ajax):
                         <td>1:<?php echo ceil(floatval($r->rr_ratio)); ?></td>
                         <td style="color:green;"><?php echo TAA_DB::format_inr($r->profit); ?></td>
                         
-                        <td style="white-space:nowrap;">
-                            <?php if($r->image_url): ?>
-                                <a href="<?php echo esc_url($r->image_url); ?>" target="_blank" class="taa-btn-view" data-img="<?php echo esc_url($r->image_url); ?>">Raw</a>
-                                <?php if(!empty($r->marketing_url)): ?>
-                                    <button class="taa-btn-view taa-js-view-marketing" data-img="<?php echo esc_url($r->marketing_url); ?>" style="background:#17a2b8; color:white; border:none; margin-left:5px;">View</button>
-                                    <a href="<?php echo esc_url(add_query_arg('t', time(), $r->marketing_url)); ?>" target="_blank" class="taa-btn-view" style="background:#6c757d; color:white; border:none; margin-left:5px;">⬇</a>
-                                <?php endif; ?>
-                            <?php else: ?>-<?php endif; ?>
-                        </td>
                         <td>
                             <?php if($is_approved): ?>
                                 <span class="taa-badge" style="background:#28a745;">APPROVED</span>
@@ -143,6 +134,17 @@ if (!$is_ajax):
                                     style="background:none; border:none; color:#999; cursor:pointer; font-size:14px; margin-left:5px;">
                                 🗑
                             </button>
+                        </td>
+
+                        <td style="white-space:nowrap;">
+                            <?php if($r->image_url): ?>
+                                <a href="<?php echo esc_url($r->image_url); ?>" target="_blank" class="taa-btn-view" data-img="<?php echo esc_url($r->image_url); ?>">Raw</a>
+                                <?php if(!empty($r->marketing_url)): ?>
+                                    <button class="taa-btn-view taa-tbl-telegram-btn" data-id="<?php echo $r->id; ?>" style="background:#0088cc; color:white; border:none; margin-left:5px; padding:3px 6px; font-size:10px; cursor:pointer;" title="Send to Telegram">✈</button>
+                                    <button class="taa-btn-view taa-js-view-marketing" data-img="<?php echo esc_url($r->marketing_url); ?>" style="background:#17a2b8; color:white; border:none; margin-left:5px;">View</button>
+                                    <a href="<?php echo esc_url(add_query_arg('t', time(), $r->marketing_url)); ?>" target="_blank" class="taa-btn-view" style="background:#6c757d; color:white; border:none; margin-left:5px;">⬇</a>
+                                <?php endif; ?>
+                            <?php else: ?>-<?php endif; ?>
                         </td>
                     </tr>
                     <?php endforeach; 

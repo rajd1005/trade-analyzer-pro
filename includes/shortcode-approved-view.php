@@ -100,6 +100,7 @@ if (!$is_ajax):
                                     📢 Ads
                                 </button>
                                 <?php if(!empty($r->marketing_url)): ?>
+                                    <button class="taa-btn-view taa-tbl-telegram-btn" data-id="<?php echo $r->id; ?>" style="background:#0088cc; color:white; border:none; margin-left:5px; padding:4px 8px; font-size:11px; cursor:pointer;" title="Send to Telegram">✈</button>
                                     <button class="taa-btn-view taa-js-view-marketing" data-img="<?php echo esc_url($r->marketing_url); ?>" style="background:#17a2b8; color:white; border:none; margin-left:5px; padding:4px 8px; font-size:11px;">View</button>
                                     <a href="<?php echo esc_url(add_query_arg('t', time(), $r->marketing_url)); ?>" target="_blank" class="taa-btn-view" style="background:#6c757d; color:white; border:none; margin-left:5px; padding:4px 8px; font-size:11px; text-decoration:none;">⬇</a>
                                 <?php endif; ?>

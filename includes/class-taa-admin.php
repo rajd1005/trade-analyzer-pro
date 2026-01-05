@@ -25,6 +25,7 @@ class TAA_Admin {
         // [NEW] Telegram Settings
         register_setting('taagPlugin', 'taag_telegram_token');
         register_setting('taagPlugin', 'taag_telegram_chat_id');
+        register_setting('taagPlugin', 'taag_telegram_template'); // <--- New Setting
 
         // Validation Rules
         register_setting('taagPlugin', 'taag_val_min_profit');

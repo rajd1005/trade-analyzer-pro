@@ -49,7 +49,7 @@ if (!$is_ajax):
             <thead>
                 <tr>
                     <th>#</th>
-                    <th>Time</th><th>Dir</th><th>Instrument</th><th>Strike</th><th>Entry</th><th>Target</th><th>SL</th><th>Risk</th><th>RR</th><th>Status</th><th>Profit</th><th>Chart</th><th>Feedback</th><th>Action</th>
+                    <th>Time</th><th>Dir</th><th>Instrument</th><th>Strike</th><th>Entry</th><th>Target</th><th>SL</th><th>Risk</th><th>RR</th><th>Status</th><th>Profit</th><th>Feedback</th><th>Action</th><th>Chart</th>
                 </tr>
             </thead>
             <tbody class="taa-table-body">
@@ -104,23 +104,7 @@ if (!$is_ajax):
                             <?php endif; ?>
                         </td>
                         <td style="color:green;"><?php echo TAA_DB::format_inr($r->profit); ?></td>
-                        <td style="white-space:nowrap;">
-                            <?php if($r->image_url): ?>
-                                <a href="<?php echo esc_url($r->image_url); ?>" target="_blank" class="taa-btn-view">Original</a>
-                                
-                                <?php if($is_approved): ?>
-                                <button type="button" class="taa-btn-marketing" 
-                                    data-trade='<?php echo json_encode($mkt_data, JSON_HEX_APOS | JSON_HEX_QUOT); ?>'
-                                    style="background:#6f42c1; color:white; border:none; border-radius:3px; cursor:pointer; font-size:10px; padding:3px 6px; margin-left:5px;">
-                                    📢 Ads
-                                </button>
-                                <?php if(!empty($r->marketing_url)): ?>
-                                    <button class="taa-btn-view taa-js-view-marketing" data-img="<?php echo esc_url($r->marketing_url); ?>" style="background:#17a2b8; color:white; border:none; margin-left:5px; font-size:10px; padding:3px 6px;">View</button>
-                                    <a href="<?php echo esc_url(add_query_arg('t', time(), $r->marketing_url)); ?>" target="_blank" class="taa-btn-view" style="background:#6c757d; color:white; border:none; margin-left:5px; font-size:10px; padding:3px 6px; text-decoration:none;">⬇</a>
-                                <?php endif; ?>
-                                <?php endif; ?>
-                            <?php endif; ?>
-                        </td>
+                        
                         <td>
                             <?php if($r->status === 'REJECTED' && ($r->rejection_note || $r->rejection_image)): ?>
                                 <button class="taa-btn-view taa-js-view-feedback" 
@@ -133,6 +117,7 @@ if (!$is_ajax):
                                 -
                             <?php endif; ?>
                         </td>
+
                         <td style="text-align:center;">
                             <?php if ($r->status === 'PENDING'): ?>
                                 <button class="taa-js-hard-delete" data-id="<?php echo $r->id; ?>" 
@@ -142,6 +127,25 @@ if (!$is_ajax):
                                 </button>
                             <?php else: ?>
                                 <span style="color:#ccc; font-size:12px;">-</span>
+                            <?php endif; ?>
+                        </td>
+
+                        <td style="white-space:nowrap;">
+                            <?php if($r->image_url): ?>
+                                <a href="<?php echo esc_url($r->image_url); ?>" target="_blank" class="taa-btn-view">Original</a>
+                                
+                                <?php if($is_approved): ?>
+                                <button type="button" class="taa-btn-marketing" 
+                                    data-trade='<?php echo json_encode($mkt_data, JSON_HEX_APOS | JSON_HEX_QUOT); ?>'
+                                    style="background:#6f42c1; color:white; border:none; border-radius:3px; cursor:pointer; font-size:10px; padding:3px 6px; margin-left:5px;">
+                                    📢 Ads
+                                </button>
+                                <?php if(!empty($r->marketing_url)): ?>
+                                    <button class="taa-btn-view taa-tbl-telegram-btn" data-id="<?php echo $r->id; ?>" style="background:#0088cc; color:white; border:none; margin-left:5px; padding:3px 6px; font-size:10px; cursor:pointer;" title="Send to Telegram">✈</button>
+                                    <button class="taa-btn-view taa-js-view-marketing" data-img="<?php echo esc_url($r->marketing_url); ?>" style="background:#17a2b8; color:white; border:none; margin-left:5px; font-size:10px; padding:3px 6px;">View</button>
+                                    <a href="<?php echo esc_url(add_query_arg('t', time(), $r->marketing_url)); ?>" target="_blank" class="taa-btn-view" style="background:#6c757d; color:white; border:none; margin-left:5px; font-size:10px; padding:3px 6px; text-decoration:none;">⬇</a>
+                                <?php endif; ?>
+                                <?php endif; ?>
                             <?php endif; ?>
                         </td>
                     </tr>

@@ -16,6 +16,47 @@ class TAA_Ajax_Marketing {
         // 4. Remote Fetch (Proxy)
         add_action( 'wp_ajax_taa_load_published_gallery', [ $this, 'load_gallery_remote' ] );
         add_action( 'wp_ajax_nopriv_taa_load_published_gallery', [ $this, 'load_gallery_remote' ] );
+
+        // 5. Send Published Image to Telegram (From Table Button)
+        add_action( 'wp_ajax_taa_send_published_telegram', [ $this, 'send_published_telegram' ] );
+    }
+
+    /**
+     * Send Published Image to Telegram (Triggered from Table)
+     */
+    public function send_published_telegram() {
+        check_ajax_referer( 'taa_nonce', 'security' );
+        
+        // 1. Get Trade ID
+        $id = intval($_POST['id']);
+        if (!$id) wp_send_json_error('Invalid ID');
+
+        // 2. Fetch Trade Data
+        global $wpdb;
+        $row = $wpdb->get_row("SELECT * FROM {$wpdb->prefix}taa_staging WHERE id = $id");
+        if (!$row) wp_send_json_error('Trade not found');
+
+        // 3. Validate Marketing URL (Fetched from IMAGE website and stored in DB)
+        if (empty($row->marketing_url)) wp_send_json_error('Image not published yet.');
+
+        // 4. Prepare Message from Template
+        $template = get_option('taag_telegram_template', "🚀 *{chart_name}* ({dir})\n\n💰 Profit: {profit}\n⚖️ RR: {rr}\n🎯 Strike: {strike}");
+        
+        $replacements = [
+            '{chart_name}' => $row->chart_name,
+            '{dir}'        => $row->dir,
+            '{profit}'     => TAA_DB::format_inr($row->profit),
+            '{rr}'         => '1:' . $row->rr_ratio,
+            '{strike}'     => $row->strike ? $row->strike : '-'
+        ];
+
+        $message = str_replace(array_keys($replacements), array_values($replacements), $template);
+
+        // 5. Send using the Stored Remote URL
+        $res = TAA_DB::send_telegram($message, $row->marketing_url);
+
+        if ($res) wp_send_json_success('Sent to Telegram');
+        else wp_send_json_error('Telegram API Failed');
     }
 
     /**
@@ -28,7 +69,6 @@ class TAA_Ajax_Marketing {
         if ( empty( $_FILES['file'] ) ) wp_send_json_error( 'No file received' );
 
         // 1. Prepare Data
-        // We still sanitize and upper-case the name for consistency
         $raw_name = sanitize_text_field( $_POST['name'] );
         $name = trim(strtoupper($raw_name));
         $date = sanitize_text_field( $_POST['date'] ); 
@@ -118,7 +158,7 @@ class TAA_Ajax_Marketing {
 
         $id = intval( $_POST['id'] ); 
         $file_date = sanitize_text_field( $_POST['trade_date'] ); 
-        $image_url = isset($_POST['image_url']) ? esc_url_raw($_POST['image_url']) : ''; // [UPDATE] Get URL
+        $image_url = isset($_POST['image_url']) ? esc_url_raw($_POST['image_url']) : ''; 
         
         if ( ! $id ) wp_send_json_error( 'ID required' );
 
@@ -148,7 +188,7 @@ class TAA_Ajax_Marketing {
         $data = json_decode( $body, true );
 
         if ( isset( $data['success'] ) && $data['success'] ) {
-            // [UPDATE] Remove from local database to hide View buttons
+            // [UPDATE] Remove from local database to hide View/Telegram buttons
             if (!empty($image_url)) {
                 global $wpdb;
                 $table = $wpdb->prefix . 'taa_staging';
@@ -166,7 +206,7 @@ class TAA_Ajax_Marketing {
     }
 
     /**
-     * Send to Telegram
+     * Send to Telegram (Manual Upload)
      */
     public function send_to_telegram() {
         check_ajax_referer( 'taa_nonce', 'security' );

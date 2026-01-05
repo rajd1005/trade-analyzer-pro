@@ -69,6 +69,13 @@
                             <p class="description">Group or User ID (e.g., -100xxxxxxx)</p>
                         </td>
                     </tr>
+                    <tr>
+                        <th>Message Template (Button)</th>
+                        <td>
+                            <textarea name="taag_telegram_template" rows="4" style="width:100%"><?php echo esc_textarea(get_option('taag_telegram_template', "🚀 *{chart_name}* ({dir})\n\n💰 Profit: {profit}\n⚖️ RR: {rr}\n🎯 Strike: {strike}")); ?></textarea>
+                            <p class="description">Placeholders: <code>{profit}</code>, <code>{rr}</code>, <code>{chart_name}</code>, <code>{strike}</code>, <code>{dir}</code></p>
+                        </td>
+                    </tr>
                     
                     <tr>
                         <th colspan="2" style="padding-top:20px; color:#0073aa;">Validation Rules</th>

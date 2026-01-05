@@ -2,12 +2,42 @@
     'use strict';
 
     $(document).ready(function() {
-        console.log("TAA v33.8: Marketing (Trade Date Fix + ID Sync)");
+        console.log("TAA v34.0: Marketing (Telegram Button Added)");
 
         if (typeof taa_mkt_vars === 'undefined') {
             console.error("TAA ERROR: taa_mkt_vars missing.");
             return;
         }
+
+        // --- TABLE TELEGRAM BUTTON HANDLER ---
+        $(document).on('click', '.taa-tbl-telegram-btn', function(e) {
+            e.preventDefault();
+            var $btn = $(this);
+            var id = $btn.data('id');
+            
+            $btn.prop('disabled', true).text('...');
+            
+            $.post(taa_vars.ajaxurl, {
+                action: 'taa_send_published_telegram',
+                security: taa_vars.nonce,
+                id: id
+            }, function(res) {
+                $btn.prop('disabled', false).text('✈');
+                if(res.success) {
+                    if(typeof Swal !== 'undefined') Swal.fire({ icon: 'success', title: 'Sent!', toast: true, position: 'top-end', timer: 2000, showConfirmButton: false });
+                    else alert('Sent!');
+                } else {
+                    alert('Error: ' + res.data);
+                }
+            }).fail(function() {
+                $btn.prop('disabled', false).text('✈');
+                alert('Network Error');
+            });
+        });
+
+        // =====================================
+        // EXISTING MARKETING MODAL CODE BELOW
+        // =====================================
 
         var activeTradeData = null;
         var mainChartImg = null; 
@@ -220,7 +250,7 @@
             }, 100);
         });
 
-        // --- TELEGRAM HANDLER ---
+        // --- TELEGRAM HANDLER (In Modal) ---
         $('#taa-mkt-telegram').on('click', function() {
             var $btn = $(this);
             var originalText = $btn.html();
