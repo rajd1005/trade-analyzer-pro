@@ -3,6 +3,24 @@
 $is_ajax = (isset($taa_is_ajax) && $taa_is_ajax === true);
 if (!isset($today)) $today = current_time('Y-m-d');
 
+// --- 1. FETCH DATA (Initial Load) ---
+global $wpdb;
+$rows = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}taa_staging WHERE DATE(created_at) = '$today' ORDER BY id DESC");
+
+// Initial Stats (Used for first server-side render)
+$stats = [ 'total' => 0, 'buy' => 0, 'sell' => 0, 'approved' => 0, 'rejected' => 0, 'pending' => 0 ];
+if ($rows) {
+    foreach ($rows as $r) {
+        $stats['total']++;
+        if (strtoupper($r->dir) === 'BUY') $stats['buy']++;
+        if (strtoupper($r->dir) === 'SELL') $stats['sell']++;
+        if (strpos($r->status, 'APPROVED') !== false) $stats['approved']++;
+        elseif ($r->status === 'REJECTED') $stats['rejected']++;
+        else $stats['pending']++;
+    }
+}
+
+// --- 2. RENDER HEADER (NON-AJAX ONLY) ---
 if (!$is_ajax):
 ?>
 <div class="taa-dashboard-wrapper" data-type="staging">
@@ -18,18 +36,28 @@ if (!$is_ajax):
             <button class="taa-btn-reload taa-refresh-btn">↻ Refresh</button>
         </div>
     </div>
+
+    <div class="taa-summary-bar">
+        <div class="taa-summ-item"><span class="taa-summ-label">Total</span> <span class="taa-summ-val s-total"><?php echo $stats['total']; ?></span></div>
+        <div class="taa-summ-item"><span class="taa-summ-label">Buy</span> <span class="taa-summ-val s-buy"><?php echo $stats['buy']; ?></span></div>
+        <div class="taa-summ-item"><span class="taa-summ-label">Sell</span> <span class="taa-summ-val s-sell"><?php echo $stats['sell']; ?></span></div>
+        <div class="taa-summ-item s-approved-box"><span class="taa-summ-label">Approved</span> <span class="taa-summ-val s-approved"><?php echo $stats['approved']; ?></span></div>
+        <div class="taa-summ-item s-pending-box"><span class="taa-summ-label">Pending</span> <span class="taa-summ-val s-pending"><?php echo $stats['pending']; ?></span></div>
+        <div class="taa-summ-item s-rejected-box"><span class="taa-summ-label">Rejected</span> <span class="taa-summ-val s-rejected"><?php echo $stats['rejected']; ?></span></div>
+    </div>
+
     <div class="taa-table-responsive">
         <table class="taa-staging-table">
             <thead>
-                <tr><th>Time</th><th>Dir</th><th>Instrument</th><th>Strike</th><th>Entry</th><th>Target</th><th>SL</th><th>Risk</th><th>RR</th><th>Profit</th><th>Chart</th><th>Actions</th></tr>
+                <tr>
+                    <th>#</th>
+                    <th>Time</th><th>Dir</th><th>Instrument</th><th>Strike</th><th>Entry</th><th>Target</th><th>SL</th><th>Risk</th><th>RR</th><th>Profit</th><th>Chart</th><th>Actions</th>
+                </tr>
             </thead>
             <tbody class="taa-table-body">
 <?php endif; ?>
 
                 <?php 
-                global $wpdb;
-                $rows = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}taa_staging WHERE DATE(created_at) = '$today' ORDER BY id DESC");
-                
                 $counts = []; 
                 $total_approved_profit = 0;
 
@@ -43,32 +71,26 @@ if (!$is_ajax):
                     } 
                 }
                 
+                $i = 1;
+
                 if($rows):
                     foreach($rows as $r): 
                         $is_dup = (isset($counts[$r->chart_name.'|'.$r->strike.'|'.$r->dir]) && $counts[$r->chart_name.'|'.$r->strike.'|'.$r->dir] > 1 && $r->status === 'PENDING');
                         $is_approved = (strpos($r->status, 'APPROVED') !== false); 
                         $is_rejected = ($r->status === 'REJECTED');
 
-                        // Marketing Data Construction
                         $mkt_data = [];
                         if ($is_approved) {
                             $mkt_data = [
-                                'id'     => $r->id,
-                                'dir'    => $r->dir,
-                                'inst'   => $r->chart_name,
-                                'strike' => $r->strike,
-                                'entry'  => $r->entry,
-                                'target' => $r->target,
-                                'sl'     => $r->sl,
-                                'risk'   => TAA_DB::format_inr($r->risk),
-                                'rr'     => $r->rr_ratio,
-                                'profit' => TAA_DB::format_inr($r->profit),
-                                'lots'   => $r->total_lots, 
-                                'img'    => $r->image_url
+                                'id'     => $r->id, 'dir' => $r->dir, 'inst' => $r->chart_name, 'strike' => $r->strike,
+                                'entry'  => $r->entry, 'target' => $r->target, 'sl' => $r->sl,
+                                'risk'   => TAA_DB::format_inr($r->risk), 'rr' => $r->rr_ratio,
+                                'profit' => TAA_DB::format_inr($r->profit), 'lots' => $r->total_lots, 'img' => $r->image_url
                             ];
                         }
                     ?>
                     <tr id="row-<?php echo $r->id; ?>" style="<?php echo $is_dup ? 'background:#fffbea;' : ''; ?>">
+                        <td><?php echo $i++; ?></td>
                         <td><?php echo date('H:i', strtotime($r->created_at)); ?></td>
                         <td><span class="taa-badge <?php echo $r->dir=='BUY'?'taa-buy':'taa-sell'; ?>"><?php echo $r->dir; ?></span></td>
                         <td style="font-weight:600;"><?php echo esc_html($r->chart_name); ?></td>
@@ -89,13 +111,11 @@ if (!$is_ajax):
                                     style="background:#6f42c1; color:white; border:none; border-radius:3px; cursor:pointer; font-size:10px; padding:3px 6px; margin-left:5px;">
                                     📢 Ads
                                 </button>
-
                             <?php elseif($is_rejected): ?>
                                 <span class="taa-badge" style="background:#dc3545;">REJECTED</span>
                             <?php else: ?>
                                 <?php if($is_dup): ?><span style="font-size:10px; color:orange; display:block;">DUPLICATE</span><?php endif; ?>
                                 <button class="taa-btn-approve taa-js-approve" data-id="<?php echo $r->id; ?>">✔</button>
-                                
                                 <button class="taa-btn-delete taa-js-reject-init" 
                                     data-id="<?php echo $r->id; ?>" 
                                     data-img="<?php echo esc_url($r->image_url); ?>"
@@ -110,7 +130,7 @@ if (!$is_ajax):
                             <?php endif; ?>
 
                             <button class="taa-js-hard-delete" data-id="<?php echo $r->id; ?>" 
-                                    title="Hard Delete (Removes Image & Data)"
+                                    title="Hard Delete"
                                     style="background:none; border:none; color:#999; cursor:pointer; font-size:14px; margin-left:5px;">
                                 🗑
                             </button>
@@ -119,13 +139,13 @@ if (!$is_ajax):
                     <?php endforeach; 
                     
                     // Total Row
-                    echo "<tr style='background:#e8f5e9; font-weight:bold; border-top:2px solid #28a745;'><td colspan='9' style='text-align:right;'>TOTAL APPROVED PROFIT:</td><td style='color:green; font-size:14px;'>" . TAA_DB::format_inr($total_approved_profit) . "</td><td colspan='2'></td></tr>";
+                    echo "<tr style='background:#e8f5e9; font-weight:bold; border-top:2px solid #28a745;'><td colspan='10' style='text-align:right;'>TOTAL APPROVED PROFIT:</td><td style='color:green; font-size:14px;'>" . TAA_DB::format_inr($total_approved_profit) . "</td><td colspan='2'></td></tr>";
 
                 else:
-                    echo "<tr><td colspan='12' style='text-align:center; padding:20px;'>No trades for today.</td></tr>";
+                    echo "<tr><td colspan='13' style='text-align:center; padding:20px;'>No trades for today.</td></tr>";
                 endif; 
                 ?>
-
+                
 <?php if (!$is_ajax): ?>
             </tbody>
         </table>

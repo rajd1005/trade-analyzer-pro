@@ -22,6 +22,36 @@
 .taa-staging-header h2 { margin: 0; font-size: 18px; color: #222; font-weight: 700; }
 .taa-date-input { font-size: 14px; padding: 6px 10px; border: 1px solid #ccc; border-radius: 4px; }
 
+/* --- SUMMARY BAR --- */
+.taa-summary-bar {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    padding: 10px 20px;
+    background: #fdfdfd;
+    border-bottom: 1px solid #eee;
+}
+.taa-summ-item {
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 5px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #555;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+}
+.taa-summ-val { font-weight: 800; font-size: 14px; color: #000; }
+.taa-summ-label { text-transform: uppercase; font-size: 10px; color: #888; letter-spacing: 0.5px; }
+
+.taa-summ-item.s-approved-box { border-left: 3px solid #28a745; }
+.taa-summ-item.s-rejected-box { border-left: 3px solid #dc3545; }
+.taa-summ-item.s-pending-box { border-left: 3px solid #ffc107; }
+/* --- END SUMMARY BAR --- */
+
 .taa-refresh-btn { 
     background: #fff; border: 1px solid #ccc; padding: 6px 12px; border-radius: 4px; 
     cursor: pointer; font-size: 13px; color: #555; transition: 0.2s; 
