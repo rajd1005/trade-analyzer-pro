@@ -7,7 +7,7 @@ class TAA_Activator {
         $table_name = $wpdb->prefix . 'taa_staging';
         $charset_collate = $wpdb->get_charset_collate();
 
-        // Added rejection_note and rejection_image columns
+        // Added marketing_url column for the new feature
         $sql = "CREATE TABLE $table_name (
             id mediumint(9) NOT NULL AUTO_INCREMENT,
             created_at datetime DEFAULT '0000-00-00 00:00:00' NOT NULL,
@@ -28,6 +28,7 @@ class TAA_Activator {
             image_url varchar(255),
             rejection_note text,
             rejection_image varchar(255),
+            marketing_url varchar(255),
             PRIMARY KEY  (id)
         ) $charset_collate;";
 

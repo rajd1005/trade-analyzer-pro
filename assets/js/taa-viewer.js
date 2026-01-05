@@ -2,21 +2,18 @@
     'use strict';
 
     $(document).ready(function() {
-        console.log("TAA v30.12: Viewer Module (Drag Hand Mode)");
+        console.log("TAA v30.13: Viewer Module (Drag Hand + Marketing)");
         
         let viewerInstance = null;
 
-        $(document).on('click', '.taa-js-view-feedback', function(e) {
-            e.preventDefault();
-            var note = $(this).data('note');
-            var imgUrl = $(this).data('img');
-
+        // Shared function for opening the viewer
+        function openViewer(imgUrl, titleText) {
             if (!imgUrl) return;
 
             // Create temporary image
             var image = new Image();
             image.src = imgUrl;
-            image.alt = "Rejection Feedback";
+            image.alt = titleText || "Image Viewer";
 
             if (viewerInstance) {
                 viewerInstance.destroy();
@@ -29,17 +26,17 @@
                 },
                 
                 // --- ZOOM & DRAG SETTINGS ---
-                zoomable: true,       // Buttons (+/-) will still work
-                zoomOnTouch: false,   // STRICTLY DISABLE Pinch-to-Zoom
-                zoomOnWheel: false,   // STRICTLY DISABLE Mouse Wheel Zoom
-                movable: true,        // ENABLE Dragging
-                toggleOnDblclick: false, // DISABLE Double-tap zoom (prevents accidental zooming)
+                zoomable: true,       
+                zoomOnTouch: false,   
+                zoomOnWheel: false,   
+                movable: true,        
+                toggleOnDblclick: false, 
                 
                 // --- VISUALS ---
                 tooltip: true,
                 navbar: false, 
                 title: function() {
-                    return note ? 'Note: ' + note : 'Rejection Feedback';
+                    return titleText || 'View Image';
                 },
                 toolbar: {
                     zoomIn: 1,
@@ -52,16 +49,31 @@
                     flipVertical: 0,
                 },
                 backdrop: true,
-                className: 'taa-native-viewer', // Custom class for CSS overrides
+                className: 'taa-native-viewer', 
                 
-                // Force "Move" mode immediately when viewed
                 viewed: function() {
-                    // This ensures the internal logic knows we want to drag
                     viewerInstance.move(0, 0); 
                 }
             });
 
             viewerInstance.show();
+        }
+
+        // 1. Rejection Feedback
+        $(document).on('click', '.taa-js-view-feedback', function(e) {
+            e.preventDefault();
+            var note = $(this).data('note');
+            var imgUrl = $(this).data('img');
+            openViewer(imgUrl, note ? 'Note: ' + note : 'Rejection Feedback');
+        });
+
+        // 2. Marketing View (New Feature)
+        $(document).on('click', '.taa-js-view-marketing', function(e) {
+            e.preventDefault();
+            var imgUrl = $(this).data('img');
+            // Add cache buster to ensure latest image if overwritten
+            if(imgUrl.indexOf('?') === -1) imgUrl += '?t=' + new Date().getTime();
+            openViewer(imgUrl, 'Published Marketing Image');
         });
     });
 })(jQuery);

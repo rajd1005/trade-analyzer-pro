@@ -115,6 +115,7 @@ async function loadTaaGallery(isAutoLoad = false) {
                 const row = document.createElement('tr');
                 const canDelete = taaIsPrivileged || (img.trade_date === taaServerToday);
 
+                // [UPDATE] Added data-url to pass to delete function
                 row.innerHTML = `
                     <td style="padding:8px;border:1px solid #ccc;text-align:center;">${img.trade_date}</td>
                     <td style="padding:8px;border:1px solid #ccc;text-align:center;">${img.name}</td>
@@ -123,7 +124,7 @@ async function loadTaaGallery(isAutoLoad = false) {
                     </td>
                     <td style="padding:8px;border:1px solid #ccc;text-align:center;">
                         ${canDelete
-                            ? `<button class="taa-gal-del-btn" data-id="${img.id}" data-date="${img.trade_date}" style="padding:5px 10px;background:red;color:white;border:none;border-radius:3px;cursor:pointer;">Delete</button>`
+                            ? `<button class="taa-gal-del-btn" data-id="${img.id}" data-date="${img.trade_date}" data-url="${img.image_url}" style="padding:5px 10px;background:red;color:white;border:none;border-radius:3px;cursor:pointer;">Delete</button>`
                             : '<span style="color:#aaa;">Locked</span>'}
                     </td>
                 `;
@@ -149,24 +150,37 @@ document.addEventListener('click', function(e) {
         e.preventDefault();
         const id = e.target.getAttribute('data-id');
         const date = e.target.getAttribute('data-date');
-        deleteTaaImage(id, date, e.target);
+        const url = e.target.getAttribute('data-url'); // [UPDATE] Get URL
+        deleteTaaImage(id, date, url, e.target);
     }
 });
 
-function deleteTaaImage(id, date, btn) {
-    if (!confirm("Are you sure you want to delete this image?")) return;
+function deleteTaaImage(id, date, url, btn) {
+    if (!confirm("Are you sure you want to delete this image? This will remove the View/Download buttons from dashboards as well.")) return;
     btn.textContent = '...'; btn.disabled = true;
 
     jQuery.post(taaAjaxUrl, {
         action: 'taa_delete_published_image',
         security: taaNonce,
         id: id,
-        trade_date: date
+        trade_date: date,
+        image_url: url // [UPDATE] Pass URL to server
     }, function(res) {
         if (res.success) {
+            // 1. Remove from Gallery Table
             const row = btn.closest('tr');
             row.style.opacity = '0';
             setTimeout(() => row.remove(), 500);
+
+            // 2. [UPDATE] Immediately remove View/Download buttons from other tables on the page
+            if (url) {
+                // Find buttons with this URL in other dashboards (Staging, Approved, History)
+                const linkedButtons = document.querySelectorAll(`button[data-img="${url}"], a[href="${url}"]`);
+                linkedButtons.forEach(el => {
+                    el.remove();
+                });
+            }
+
         } else {
             alert("❌ Delete failed: " + (res.data || ''));
             btn.textContent = 'Delete'; btn.disabled = false;

@@ -2,7 +2,7 @@
     'use strict';
 
     $(document).ready(function() {
-        console.log("TAA v33.7: Marketing (Trade Date Fix)");
+        console.log("TAA v33.8: Marketing (Trade Date Fix + ID Sync)");
 
         if (typeof taa_mkt_vars === 'undefined') {
             console.error("TAA ERROR: taa_mkt_vars missing.");
@@ -175,6 +175,7 @@
                     var formData = new FormData();
                     formData.append('action', 'taa_publish_marketing_image');
                     formData.append('security', taa_vars.nonce);
+                    formData.append('id', activeTradeData.id); // [NEW] Pass ID for DB update
                     
                     // [FIX] Use Trade Date if available, otherwise Today
                     // We check common date field names: entry_date, date, trade_date
@@ -204,6 +205,8 @@
                                 else alert('Published Successfully for ' + dateStr);
                                 
                                 $(document).trigger('taa_gallery_refresh');
+                                // Optional: Refresh current dashboard to show View button immediately
+                                if(typeof notifyGlobalChange === 'function') notifyGlobalChange();
                             } else {
                                 var msg = response.data || 'Publish failed';
                                 if(typeof Swal !== 'undefined') Swal.fire('Error', msg, 'error');

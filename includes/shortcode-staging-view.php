@@ -85,7 +85,8 @@ if (!$is_ajax):
                                 'id'     => $r->id, 'dir' => $r->dir, 'inst' => $r->chart_name, 'strike' => $r->strike,
                                 'entry'  => $r->entry, 'target' => $r->target, 'sl' => $r->sl,
                                 'risk'   => TAA_DB::format_inr($r->risk), 'rr' => $r->rr_ratio,
-                                'profit' => TAA_DB::format_inr($r->profit), 'lots' => $r->total_lots, 'img' => $r->image_url
+                                'profit' => TAA_DB::format_inr($r->profit), 'lots' => $r->total_lots, 'img' => $r->image_url,
+                                'trade_date' => date('Y-m-d', strtotime($r->created_at))
                             ];
                         }
                     ?>
@@ -102,7 +103,15 @@ if (!$is_ajax):
                         <td>1:<?php echo ceil(floatval($r->rr_ratio)); ?></td>
                         <td style="color:green;"><?php echo TAA_DB::format_inr($r->profit); ?></td>
                         
-                        <td><?php if($r->image_url): ?><a href="<?php echo esc_url($r->image_url); ?>" target="_blank" class="taa-btn-view" data-img="<?php echo esc_url($r->image_url); ?>">View</a><?php else: ?>-<?php endif; ?></td>
+                        <td style="white-space:nowrap;">
+                            <?php if($r->image_url): ?>
+                                <a href="<?php echo esc_url($r->image_url); ?>" target="_blank" class="taa-btn-view" data-img="<?php echo esc_url($r->image_url); ?>">Raw</a>
+                                <?php if(!empty($r->marketing_url)): ?>
+                                    <button class="taa-btn-view taa-js-view-marketing" data-img="<?php echo esc_url($r->marketing_url); ?>" style="background:#17a2b8; color:white; border:none; margin-left:5px;">View</button>
+                                    <a href="<?php echo esc_url(add_query_arg('t', time(), $r->marketing_url)); ?>" target="_blank" class="taa-btn-view" style="background:#6c757d; color:white; border:none; margin-left:5px;">⬇</a>
+                                <?php endif; ?>
+                            <?php else: ?>-<?php endif; ?>
+                        </td>
                         <td>
                             <?php if($is_approved): ?>
                                 <span class="taa-badge" style="background:#28a745;">APPROVED</span>

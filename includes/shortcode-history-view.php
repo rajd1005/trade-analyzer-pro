@@ -77,7 +77,8 @@ if (!$is_ajax):
                                 'id'     => $r->id, 'dir' => $r->dir, 'inst' => $r->chart_name, 'strike' => $r->strike,
                                 'entry'  => $r->entry, 'target' => $r->target, 'sl' => $r->sl,
                                 'risk'   => TAA_DB::format_inr($r->risk), 'rr' => $r->rr_ratio,
-                                'profit' => TAA_DB::format_inr($r->profit), 'lots' => $r->total_lots, 'img' => $r->image_url
+                                'profit' => TAA_DB::format_inr($r->profit), 'lots' => $r->total_lots, 'img' => $r->image_url,
+                                'trade_date' => date('Y-m-d', strtotime($r->created_at))
                             ];
                         }
                     ?>
@@ -113,6 +114,10 @@ if (!$is_ajax):
                                     style="background:#6f42c1; color:white; border:none; border-radius:3px; cursor:pointer; font-size:10px; padding:3px 6px; margin-left:5px;">
                                     📢 Ads
                                 </button>
+                                <?php if(!empty($r->marketing_url)): ?>
+                                    <button class="taa-btn-view taa-js-view-marketing" data-img="<?php echo esc_url($r->marketing_url); ?>" style="background:#17a2b8; color:white; border:none; margin-left:5px; font-size:10px; padding:3px 6px;">View</button>
+                                    <a href="<?php echo esc_url(add_query_arg('t', time(), $r->marketing_url)); ?>" target="_blank" class="taa-btn-view" style="background:#6c757d; color:white; border:none; margin-left:5px; font-size:10px; padding:3px 6px; text-decoration:none;">⬇</a>
+                                <?php endif; ?>
                                 <?php endif; ?>
                             <?php endif; ?>
                         </td>

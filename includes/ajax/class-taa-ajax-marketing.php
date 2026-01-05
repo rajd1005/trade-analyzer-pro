@@ -32,6 +32,7 @@ class TAA_Ajax_Marketing {
         $raw_name = sanitize_text_field( $_POST['name'] );
         $name = trim(strtoupper($raw_name));
         $date = sanitize_text_field( $_POST['date'] ); 
+        $trade_id = isset($_POST['id']) ? intval($_POST['id']) : 0;
 
         // 2. Direct Upload (No check, No delete)
         $remote_url = 'https://image.rdalgo.in/wp-json/rdalgo/v1/upload';
@@ -64,8 +65,29 @@ class TAA_Ajax_Marketing {
         $body = wp_remote_retrieve_body( $response );
         $data = json_decode( $body, true );
         
-        if ( isset( $data['success'] ) && $data['success'] ) wp_send_json_success( $data );
-        else wp_send_json_error( isset($data['message']) ? $data['message'] : 'Upload Failed' );
+        if ( isset( $data['success'] ) && $data['success'] ) {
+            // Update Local Database with Marketing URL if ID is present
+            if ($trade_id > 0) {
+                global $wpdb;
+                // Try to find the URL in the response
+                $mkt_url = '';
+                if (!empty($data['image_url'])) $mkt_url = $data['image_url'];
+                elseif (!empty($data['url'])) $mkt_url = $data['url'];
+                elseif (isset($data['data']['image_url'])) $mkt_url = $data['data']['image_url'];
+                elseif (isset($data['data']['url'])) $mkt_url = $data['data']['url'];
+
+                if (!empty($mkt_url)) {
+                    $wpdb->update(
+                        $wpdb->prefix . 'taa_staging',
+                        ['marketing_url' => $mkt_url],
+                        ['id' => $trade_id]
+                    );
+                }
+            }
+            wp_send_json_success( $data );
+        } else {
+            wp_send_json_error( isset($data['message']) ? $data['message'] : 'Upload Failed' );
+        }
     }
 
     /**
@@ -96,6 +118,8 @@ class TAA_Ajax_Marketing {
 
         $id = intval( $_POST['id'] ); 
         $file_date = sanitize_text_field( $_POST['trade_date'] ); 
+        $image_url = isset($_POST['image_url']) ? esc_url_raw($_POST['image_url']) : ''; // [UPDATE] Get URL
+        
         if ( ! $id ) wp_send_json_error( 'ID required' );
 
         $current_user = wp_get_current_user();
@@ -123,8 +147,22 @@ class TAA_Ajax_Marketing {
         $body = wp_remote_retrieve_body( $response );
         $data = json_decode( $body, true );
 
-        if ( isset( $data['success'] ) && $data['success'] ) wp_send_json_success( 'Deleted' );
-        else wp_send_json_error( isset($data['message']) ? $data['message'] : 'Delete Failed' );
+        if ( isset( $data['success'] ) && $data['success'] ) {
+            // [UPDATE] Remove from local database to hide View buttons
+            if (!empty($image_url)) {
+                global $wpdb;
+                $table = $wpdb->prefix . 'taa_staging';
+                // Clear marketing_url where it matches the deleted image URL
+                $wpdb->query( $wpdb->prepare( 
+                    "UPDATE $table SET marketing_url = '' WHERE marketing_url = %s", 
+                    $image_url 
+                ) );
+            }
+            wp_send_json_success( 'Deleted' );
+        }
+        else {
+            wp_send_json_error( isset($data['message']) ? $data['message'] : 'Delete Failed' );
+        }
     }
 
     /**
