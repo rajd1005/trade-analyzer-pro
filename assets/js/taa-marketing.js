@@ -2,14 +2,14 @@
     'use strict';
 
     $(document).ready(function() {
-        console.log("TAA v34.0: Marketing (Telegram Button Added)");
+        console.log("TAA v34.1: Marketing (Editor Buttons Cleaned)");
 
         if (typeof taa_mkt_vars === 'undefined') {
             console.error("TAA ERROR: taa_mkt_vars missing.");
             return;
         }
 
-        // --- TABLE TELEGRAM BUTTON HANDLER ---
+        // --- TABLE TELEGRAM BUTTON HANDLER (Keep this active for the Dashboard list) ---
         $(document).on('click', '.taa-tbl-telegram-btn', function(e) {
             e.preventDefault();
             var $btn = $(this);
@@ -52,7 +52,7 @@
         var tagUrl = basePath + 'tag.png';
         var contactTagUrl = basePath + 'tag-contact.png';
 
-        // --- MODAL HTML ---
+        // --- MODAL HTML (Updated: Removed Telegram and Download Buttons) ---
         var modalHtml = `
             <style>
                 @media screen and (max-width: 768px) {
@@ -105,10 +105,6 @@
                             <button type="button" id="taa-mkt-publish" class="taa-mkt-btn" style="background-color:#28a745; color:#fff; margin-right:10px;">
                                 ☁ Publish
                             </button>
-                            <button type="button" id="taa-mkt-telegram" class="taa-mkt-btn taa-btn-telegram" style="background-color:#0088cc; color:#fff; margin-right:10px;">
-                                ✈ Telegram
-                            </button>
-                            <button type="button" id="taa-mkt-dl" class="taa-mkt-btn taa-btn-download">⬇ Download</button>
                             <button type="button" id="taa-mkt-close" class="taa-mkt-btn taa-btn-close">Close</button>
                         </div>
                     </div>
@@ -247,77 +243,6 @@
                         complete: function() { $btn.prop('disabled', false).html(originalText); }
                     });
                 }, 'image/jpeg', 0.95);
-            }, 100);
-        });
-
-        // --- TELEGRAM HANDLER (In Modal) ---
-        $('#taa-mkt-telegram').on('click', function() {
-            var $btn = $(this);
-            var originalText = $btn.html();
-            
-            activeDragIndex = -1;
-            drawCanvas();
-
-            $btn.prop('disabled', true).html('⌛ Sending...');
-
-            setTimeout(function() {
-                var canvas = document.getElementById('taa-mkt-canvas');
-                
-                canvas.toBlob(function(blob) {
-                    if (!blob) { alert('Error generating image.'); $btn.prop('disabled', false).html(originalText); return; }
-
-                    var formData = new FormData();
-                    formData.append('action', 'taa_send_marketing_telegram');
-                    formData.append('security', taa_vars.nonce); 
-                    formData.append('image', blob, 'trade_signal.jpg');
-                    
-                    var caption = "🔔 *" + activeTradeData.inst + "* (" + activeTradeData.dir + ")\n" +
-                                  "Entry: " + activeTradeData.entry + "\n" +
-                                  "Target: " + activeTradeData.target + "\n" + 
-                                  "SL: " + activeTradeData.sl;
-                    formData.append('caption', caption);
-
-                    $.ajax({
-                        url: taa_vars.ajaxurl, type: 'POST', data: formData, processData: false, contentType: false,
-                        success: function(response) {
-                            if(response.success) {
-                                if(typeof Swal !== 'undefined') Swal.fire('Sent!', 'Trade setup sent to Telegram.', 'success');
-                                else alert('Sent!');
-                            } else {
-                                if(typeof Swal !== 'undefined') Swal.fire('Error', response.data || 'Unknown error', 'error');
-                                else alert('Error: ' + response.data);
-                            }
-                        },
-                        error: function(xhr, status, error) { alert('AJAX Error: ' + error); },
-                        complete: function() { $btn.prop('disabled', false).html(originalText); }
-                    });
-                }, 'image/jpeg', 0.95); 
-            }, 100);
-        });
-
-        // --- DOWNLOAD HANDLER ---
-        $('#taa-mkt-dl').on('click', function() {
-            var $btn = $(this);
-            var originalText = $btn.html();
-
-            activeDragIndex = -1; 
-            drawCanvas(); 
-            
-            $btn.prop('disabled', true).html('⬇ Saving...');
-
-            setTimeout(function() {
-                var canvas = document.getElementById('taa-mkt-canvas');
-                var fn = (activeTradeData.inst + "_" + activeTradeData.strike).replace(/\s+/g,'_').replace(/[^a-zA-Z0-9_]/g, '');
-                
-                var link = document.createElement('a');
-                link.download = fn + '.jpg';
-                link.href = canvas.toDataURL("image/jpeg", 1.0);
-                
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-
-                $btn.prop('disabled', false).html(originalText);
             }, 100);
         });
 

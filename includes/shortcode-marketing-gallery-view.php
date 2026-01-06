@@ -102,6 +102,7 @@ async function loadTaaGallery(isAutoLoad = false) {
             table.innerHTML = `
                 <thead>
                     <tr style="background:#f0f0f0;">
+                        <th style="padding:8px;border:1px solid #ccc;width:60px;">Sr No.</th>
                         <th style="padding:8px;border:1px solid #ccc;">Trade Date</th>
                         <th style="padding:8px;border:1px solid #ccc;">Name</th>
                         <th style="padding:8px;border:1px solid #ccc;">View</th>
@@ -111,12 +112,14 @@ async function loadTaaGallery(isAutoLoad = false) {
                 <tbody></tbody>
             `;
 
-            images.forEach(img => {
+            images.forEach((img, index) => {
                 const row = document.createElement('tr');
                 const canDelete = taaIsPrivileged || (img.trade_date === taaServerToday);
+                const serialNumber = index + 1;
 
                 // [UPDATE] Added data-url to pass to delete function
                 row.innerHTML = `
+                    <td style="padding:8px;border:1px solid #ccc;text-align:center;">${serialNumber}</td>
                     <td style="padding:8px;border:1px solid #ccc;text-align:center;">${img.trade_date}</td>
                     <td style="padding:8px;border:1px solid #ccc;text-align:center;">${img.name}</td>
                     <td style="padding:8px;border:1px solid #ccc;text-align:center;">
