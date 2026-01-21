@@ -168,21 +168,20 @@
             // Watermark
             ctx.save();
             ctx.translate(W/2, H/2);
-            ctx.rotate(-Math.PI / 6); 
-            ctx.textAlign = "center"; ctx.textBaseline = "middle";
-            ctx.fillStyle = C_WATERMARK;
+            ctx.rotate(-Math.PI / 6);
             
-            const wmSize = Math.floor(W * 0.15); 
-            ctx.font = `900 ${wmSize}px Arial`;
-            const metrics = ctx.measureText("RDALGO.IN");
-            const stepX = metrics.width * 1.2; 
-            const stepY = wmSize * 1.5;
-
-            for (let wx = -W*1.5; wx < W*1.5; wx += stepX) {
-                for (let wy = -H*1.5; wy < H*1.5; wy += stepY) {
-                    ctx.fillText("RDALGO.IN", wx, wy);
-                }
-            }
+            // Alignment Settings
+            ctx.textAlign = "center"; 
+            ctx.textBaseline = "middle";
+            ctx.fillStyle = "rgba(255, 255, 255, 0.10)"; // Slightly lower opacity for table readability
+            ctx.font = "900 90px Arial"; // Large font for the report
+            
+            // Draw Line 1 (Phone) - shifted Up
+            ctx.fillText("7439895689", 0, -50);
+            
+            // Draw Line 2 (Brand) - shifted Down
+            ctx.fillText("RDALGO.IN", 0, 50);
+            
             ctx.restore();
 
             // Footer

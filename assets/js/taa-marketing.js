@@ -343,9 +343,23 @@
             }
 
             // Watermark
-            ctx.save(); ctx.translate(W/2, imgY + imgH/2); ctx.rotate(-Math.PI / 6); 
-            ctx.textAlign = "center"; ctx.fillStyle = "rgba(255, 255, 255, 0.1)"; 
-            ctx.font = "900 130px Arial"; ctx.fillText("RDALGO.IN", 0, 0); ctx.restore();
+            ctx.save(); 
+            ctx.translate(W/2, imgY + imgH/2); 
+            ctx.rotate(-Math.PI / 6); 
+            
+            // Alignment Settings
+            ctx.textAlign = "center"; 
+            ctx.textBaseline = "middle"; // Ensures vertical centering
+            ctx.fillStyle = "rgba(255, 255, 255, 0.15)"; // Slight opacity boost
+            ctx.font = "900 80px Arial"; // Adjusted size for 2 lines
+            
+            // Draw Line 1 (Phone) - shifted Up
+            ctx.fillText("7439895689", 0, -50); 
+            
+            // Draw Line 2 (Brand) - shifted Down
+            ctx.fillText("RDALGO.IN", 0, 30); 
+            
+            ctx.restore();
             
             // Items
             draggableItems.forEach(function(it, idx) {
