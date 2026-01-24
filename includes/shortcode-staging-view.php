@@ -87,13 +87,13 @@ if (!$is_ajax):
                         // DYNAMIC LABEL LOGIC
                         $dup_label = '';
                         if ($is_dup_group && $r->status === 'PENDING') {
-                            if ($group_status[$key]['rejected']) {
-                                $dup_label = ''; // Hide if matching duplicate was rejected
-                            } elseif ($group_status[$key]['approved']) {
-                                $dup_label = 'DUPLICATE APPROVED';
-                            } else {
-                                $dup_label = 'DUPLICATE PENDING';
-                            }
+                            if ($group_status[$key]['approved']) {
+    $dup_label = 'DUPLICATE APPROVED';
+} elseif ($group_status[$key]['rejected']) {
+    $dup_label = ''; // Only hide the label if there is NO approved trade, but there is a rejected one
+} else {
+    $dup_label = 'DUPLICATE PENDING';
+}
                         }
 
                         $mkt_data = [];

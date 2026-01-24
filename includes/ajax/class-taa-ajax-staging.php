@@ -28,7 +28,7 @@ class TAA_Ajax_Staging {
     }
 
     /**
-     * Hard Delete Trade & Image
+     * Hard Delete Trade (100% Cleanup: Remote + Final DB + Local Files + Staging DB)
      */
     public function hard_delete_trade() {
         global $wpdb;
@@ -41,26 +41,111 @@ class TAA_Ajax_Staging {
             wp_send_json_error('Trade not found');
         }
 
-        // Delete Main Image
+        // ----------------------------------------------------------------
+        // 1. REMOTE DELETE (Clean up image.rdalgo.in)
+        // ----------------------------------------------------------------
+        if (!empty($row->marketing_url)) {
+            // A. Fetch Remote ID using Date & URL
+            $remote_date = date('Y-m-d', strtotime($row->created_at));
+            $fetch_url = 'https://image.rdalgo.in/wp-json/rdalgo/v1/images?date=' . $remote_date . '&_t=' . time();
+            
+            $resp_list = wp_remote_get($fetch_url, ['timeout' => 10, 'sslverify' => false]);
+            
+            if (!is_wp_error($resp_list)) {
+                $list_data = json_decode(wp_remote_retrieve_body($resp_list), true);
+                if (is_array($list_data)) {
+                    $remote_id_to_delete = 0;
+                    // B. Find ID matching our URL
+                    foreach ($list_data as $img_obj) {
+                        $r_url = isset($img_obj['image_url']) ? $img_obj['image_url'] : (isset($img_obj['url']) ? $img_obj['url'] : '');
+                        if ($r_url === $row->marketing_url) {
+                            $remote_id_to_delete = isset($img_obj['id']) ? $img_obj['id'] : 0;
+                            break;
+                        }
+                    }
+                    // C. Fire Delete Command
+                    if ($remote_id_to_delete > 0) {
+                        wp_remote_post('https://image.rdalgo.in/wp-json/rdalgo/v1/delete', [
+                            'body' => ['id' => $remote_id_to_delete],
+                            'timeout' => 5, 'sslverify' => false
+                        ]);
+                    }
+                }
+            }
+        }
+
+        // ----------------------------------------------------------------
+        // 2. FINAL DATABASE DELETE (If Trade was Approved)
+        // ----------------------------------------------------------------
+        // If this trade was already pushed to the Final Buy/Sell tables, remove it.
+        if (stripos($row->status, 'APPROVED') !== false) {
+            $db = TAA_DB::get_connection(); // Helper to get DB connection
+            if ($db) {
+                $dir = strtoupper($row->dir);
+                $final_tbl = ($dir === 'BUY') ? get_option('taag_table_buy') : get_option('taag_table_sell');
+                $prefix    = ($dir === 'BUY') ? 'taag_col_buy_' : 'taag_col_sell_';
+                
+                // Get column names map
+                $col_name = get_option($prefix . 'name');
+                $col_strike = get_option($prefix . 'strike');
+                $col_date = get_option($prefix . 'date');
+
+                if ($final_tbl && $col_name && $col_date) {
+                    $trade_date = date('Y-m-d', strtotime($row->created_at));
+                    
+                    // Construct Delete Query for Final Table
+                    // We match Name, Strike, and exact Date
+                    $where_clause = [ $col_name => $row->chart_name ];
+                    if (!empty($col_strike) && !empty($row->strike)) {
+                        $where_clause[$col_strike] = $row->strike;
+                    }
+                    // Note: We need to handle the Date carefully (DATE vs DATETIME). 
+                    // To be safe, we use a SQL query instead of helper for date matching.
+                    $sql = "DELETE FROM $final_tbl WHERE $col_name = %s AND DATE($col_date) = %s";
+                    $args = [ $row->chart_name, $trade_date ];
+                    
+                    if (!empty($col_strike) && !empty($row->strike)) {
+                        $sql .= " AND $col_strike = %s";
+                        $args[] = $row->strike;
+                    }
+
+                    $db->query( $db->prepare($sql, $args) );
+                }
+            }
+        }
+
+        // ----------------------------------------------------------------
+        // 3. LOCAL FILE DELETE (Clean Disk Space)
+        // ----------------------------------------------------------------
+        // Delete Main Chart
         if (!empty($row->image_url)) {
             $file_path = $this->resolve_path_from_url($row->image_url);
             if ($file_path && file_exists($file_path)) {
                 @unlink($file_path);
             }
         }
-
-        // Delete Rejection Feedback Image
+        // Delete Rejection Image
         if (!empty($row->rejection_image)) {
             $file_path_rej = $this->resolve_path_from_url($row->rejection_image);
             if ($file_path_rej && file_exists($file_path_rej)) {
                 @unlink($file_path_rej);
             }
         }
+        // Delete Local Marketing File (if exists)
+        if (!empty($row->marketing_url)) {
+            $file_path_mkt = $this->resolve_path_from_url($row->marketing_url);
+            if ($file_path_mkt && file_exists($file_path_mkt)) {
+                @unlink($file_path_mkt);
+            }
+        }
 
+        // ----------------------------------------------------------------
+        // 4. STAGING DB DELETE (The Row itself)
+        // ----------------------------------------------------------------
         $result = $wpdb->delete($table, ['id' => $id]);
 
         if ($result !== false) {
-            wp_send_json_success('Trade and Image Deleted Permanently');
+            wp_send_json_success('Trade Completely Deleted (DB, Images, Remote & Final Tables)');
         } else {
             wp_send_json_error('Database Error: Could not delete row');
         }
@@ -197,13 +282,92 @@ class TAA_Ajax_Staging {
         $prev_approved = $wpdb->get_row( $wpdb->prepare("SELECT * FROM $staging_table WHERE status LIKE 'APPROVED%%' AND chart_name = %s AND strike = %s AND dir = %s AND DATE(created_at) = %s AND id != %d LIMIT 1", $staging_row['chart_name'], $staging_row['strike'], $staging_row['dir'], $trade_date, $id) );
 
         $msg = '';
-        if ($prev_approved) {
-            // UPDATE Existing
-            $db->update($table_final, $map_data, [ get_option($prefix.'name') => $staging_row['chart_name'], get_option($prefix.'strike') => $staging_row['strike'] ]); 
-            $wpdb->update($staging_table, [ 'status' => 'APPROVED (UPDATED)' ], ['id' => $prev_approved->id]);
-            $wpdb->delete($staging_table, ['id' => $id]);
-            $msg = 'Trade Updated Successfully';
+if ($prev_approved) {
+            // ----------------------------------------------------------------
+            // 1. UPDATE FINAL TABLE (Syncs numbers with history)
+            // ----------------------------------------------------------------
+            $db->update($table_final, $map_data, [ 
+                get_option($prefix.'name') => $staging_row['chart_name'], 
+                get_option($prefix.'strike') => $staging_row['strike'] 
+            ]); 
+
+            // ----------------------------------------------------------------
+            // 2. REMOTE DELETE (The "Strong" Cleanup for image.rdalgo.in)
+            // ----------------------------------------------------------------
+            if (!empty($prev_approved->marketing_url)) {
+                // A. We need the Remote ID. Fetch the list for that date to find it.
+                $remote_date = date('Y-m-d', strtotime($prev_approved->created_at));
+                $fetch_url = 'https://image.rdalgo.in/wp-json/rdalgo/v1/images?date=' . $remote_date . '&_t=' . time();
+                
+                $resp_list = wp_remote_get($fetch_url, ['timeout' => 10, 'sslverify' => false]);
+                
+                if (!is_wp_error($resp_list)) {
+                    $list_data = json_decode(wp_remote_retrieve_body($resp_list), true);
+                    
+                    if (is_array($list_data)) {
+                        $remote_id_to_delete = 0;
+                        
+                        // B. Find the ID that matches our URL
+                        foreach ($list_data as $img_obj) {
+                            // Check 'image_url' or 'url' depending on API format
+                            $r_url = isset($img_obj['image_url']) ? $img_obj['image_url'] : (isset($img_obj['url']) ? $img_obj['url'] : '');
+                            
+                            if ($r_url === $prev_approved->marketing_url) {
+                                $remote_id_to_delete = isset($img_obj['id']) ? $img_obj['id'] : 0;
+                                break;
+                            }
+                        }
+
+                        // C. If ID found, FIRE the DELETE command
+                        if ($remote_id_to_delete > 0) {
+                            wp_remote_post('https://image.rdalgo.in/wp-json/rdalgo/v1/delete', [
+                                'body' => ['id' => $remote_id_to_delete],
+                                'timeout' => 5,
+                                'sslverify' => false
+                            ]);
+                        }
+                    }
+                }
+            }
+
+            // ----------------------------------------------------------------
+            // 3. LOCAL FILE DELETE (Clean Server Space)
+            // ----------------------------------------------------------------
+            // Delete Old Chart Image
+            if (!empty($prev_approved->image_url)) {
+                $prev_img_path = $this->resolve_path_from_url($prev_approved->image_url);
+                if ($prev_img_path && file_exists($prev_img_path)) {
+                    @unlink($prev_img_path);
+                }
+            }
+            // Delete Old Rejection Image (if exists)
+            if (!empty($prev_approved->rejection_image)) {
+                $prev_rej_path = $this->resolve_path_from_url($prev_approved->rejection_image);
+                if ($prev_rej_path && file_exists($prev_rej_path)) {
+                    @unlink($prev_rej_path);
+                }
+            }
+
+            // ----------------------------------------------------------------
+            // 4. DATABASE CLEANUP
+            // ----------------------------------------------------------------
+            // Delete the old row completely
+            $wpdb->delete($staging_table, ['id' => $prev_approved->id]);
+
+            // Update the NEW row to "APPROVED (UPDATED)" and wipe the marketing link
+            // This ensures it disappears from [taa_marketing_gallery] immediately.
+            $wpdb->update($staging_table, [
+                'status' => 'APPROVED (UPDATED)', 
+                'marketing_url' => '' 
+            ], ['id' => $id]);
+            
+            $msg = 'Trade Updated (Remote & Local Images Cleaned)';
+            
+            // 5. CLEANUP ANY OTHER DUPLICATES
+            $this->cleanup_duplicates($id, $staging_row['chart_name'], $staging_row['strike'], $staging_row['dir'], $trade_date);
+
         } else {
+
             // INSERT New
             if ($db->insert($table_final, $map_data) !== false) {
                 $wpdb->update($staging_table, ['status' => 'APPROVED'], ['id' => $id]);

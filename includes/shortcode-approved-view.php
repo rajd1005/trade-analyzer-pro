@@ -81,7 +81,12 @@ if (!$is_ajax):
                     ?>
                     <tr data-lots="<?php echo esc_attr($r->total_lots); ?>">
                         <td><?php echo $i++; ?></td>
-                        <td><?php echo date('H:i', strtotime($r->created_at)); ?><?php if($is_updated): ?><br><span style="font-size:9px; color:blue; font-weight:bold;">(UPDATED)</span><?php endif; ?></td>
+                        <td><?php echo date('H:i', strtotime($r->created_at)); ?><?php if($is_updated): ?>
+    <br>
+    <span style="font-size:9px; color:blue; font-weight:bold; text-transform:uppercase;">
+        Trade Update
+    </span>
+<?php endif; ?></td>
                         <td><span class="taa-badge <?php echo $r->dir=='BUY'?'taa-buy':'taa-sell'; ?>"><?php echo $r->dir; ?></span></td>
                         <td style="font-weight:600;"><?php echo esc_html($r->chart_name); ?></td>
                         <td><?php echo esc_html($r->strike); ?></td>
