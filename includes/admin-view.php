@@ -96,7 +96,24 @@
                     <tr>
                         <th>Instruments List</th>
                         <td>
-                            <textarea name="taag_instruments_list" rows="5" style="width:100%; font-family:monospace;"><?php echo esc_textarea(get_option('taag_instruments_list')); ?></textarea>
+                            <?php 
+    // [UPDATED] Fetch from DB to ensure it matches Frontend Table
+    global $wpdb;
+    $inst_table = $wpdb->prefix . 'taa_instruments';
+    $db_rows = $wpdb->get_results("SELECT * FROM $inst_table ORDER BY name ASC");
+    
+    $current_list_str = "";
+    if ($db_rows) {
+        foreach($db_rows as $row) {
+            // Rebuild string: NAME|LOT|MODE|REQ
+            $current_list_str .= $row->name . '|' . $row->lot_size . '|' . $row->mode . '|' . $row->strike_req . "\n";
+        }
+    } else {
+        // Fallback if table empty
+        $current_list_str = get_option('taag_instruments_list');
+    }
+?>
+<textarea name="taag_instruments_list" rows="10" style="width:100%; font-family:monospace; white-space:pre; overflow-x:hidden;"><?php echo esc_textarea(trim($current_list_str)); ?></textarea>
                             <p class="description">Format: <code>NAME|LOT|MODE|STRIKE_REQ</code></p>
                         </td>
                     </tr>

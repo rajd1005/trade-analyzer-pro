@@ -7,26 +7,26 @@ class TAA_Ajax_Instruments {
         add_action( 'wp_ajax_taa_get_instruments', [ $this, 'get_instruments' ] );
         add_action( 'wp_ajax_taa_save_instruments', [ $this, 'save_instruments' ] );
 
-        // 2. Logged-out Users (Fixes "Failed to load data" for visitors)
+        // 2. Logged-out Users
         add_action( 'wp_ajax_nopriv_taa_get_instruments', [ $this, 'get_instruments' ] );
         add_action( 'wp_ajax_nopriv_taa_save_instruments', [ $this, 'save_instruments' ] );
     }
 
     public function get_instruments() {
-        // NO RESTRICTIONS: Available to everyone (Admin, User, Guest)
-        
-        $raw = get_option('taag_instruments_list', '');
-        $lines = array_filter(explode("\n", $raw));
-        $data = [];
+        global $wpdb;
+        $table = $wpdb->prefix . 'taa_instruments';
 
-        foreach($lines as $line) {
-            $parts = explode('|', trim($line));
-            if(count($parts) >= 2) {
+        // Fetch from DB Table
+        $rows = $wpdb->get_results("SELECT * FROM $table ORDER BY name ASC");
+        
+        $data = [];
+        if ($rows) {
+            foreach($rows as $r) {
                 $data[] = [
-                    'name' => trim($parts[0]),
-                    'lot'  => trim($parts[1]),
-                    'mode' => isset($parts[2]) ? trim($parts[2]) : 'BOTH',
-                    'req'  => isset($parts[3]) ? trim($parts[3]) : 'NO',
+                    'name' => $r->name,
+                    'lot'  => $r->lot_size,
+                    'mode' => $r->mode,
+                    'req'  => $r->strike_req,
                 ];
             }
         }
@@ -35,13 +35,16 @@ class TAA_Ajax_Instruments {
     }
 
     public function save_instruments() {
-        // NO RESTRICTIONS: No Nonce check, No Capability check.
-        // Anyone can save data.
+        global $wpdb;
+        $table = $wpdb->prefix . 'taa_instruments';
         
         $items = isset($_POST['items']) ? $_POST['items'] : [];
         if (!is_array($items)) wp_send_json_error('Invalid Data');
 
-        $lines = [];
+        // STRATEGY: Wipe and Replace (Simplest for "Settings" style lists)
+        // This prevents logic errors with ID matching during re-ordering.
+        $wpdb->query("TRUNCATE TABLE $table");
+
         foreach($items as $item) {
             $name = sanitize_text_field($item['name']);
             $lot = intval($item['lot']);
@@ -49,13 +52,15 @@ class TAA_Ajax_Instruments {
             $req = sanitize_text_field($item['req']);
             
             if(!empty($name)) {
-                $lines[] = "$name|$lot|$mode|$req";
+                $wpdb->insert($table, [
+                    'name' => strtoupper(trim($name)), // Force Uppercase for consistency
+                    'lot_size' => $lot,
+                    'mode' => $mode,
+                    'strike_req' => $req
+                ]);
             }
         }
 
-        $final_str = implode("\n", $lines);
-        update_option('taag_instruments_list', $final_str);
-
-        wp_send_json_success('Saved Successfully');
+        wp_send_json_success('Saved to Database Successfully');
     }
 }

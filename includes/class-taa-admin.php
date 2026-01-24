@@ -16,7 +16,10 @@ class TAA_Admin {
         register_setting('taagPlugin', 'taag_api_key');
         register_setting('taagPlugin', 'taag_model_id');
         register_setting('taagPlugin', 'taag_default_total_lots');
-        register_setting('taagPlugin', 'taag_instruments_list');
+        // [UPDATED] Register with Callback to sync DB
+        register_setting('taagPlugin', 'taag_instruments_list', [
+            'sanitize_callback' => [ $this, 'save_instruments_to_db' ]
+        ]);
         
         // Settings: Input Mode & Permissions
         register_setting('taagPlugin', 'taag_input_mode'); 
@@ -122,5 +125,42 @@ class TAA_Admin {
         }
 
         require_once TAA_PLUGIN_DIR . 'includes/admin-view.php';
+    }
+     /**
+     * Intercepts the Settings Save to Bulk Update the DB Table
+     */
+    public function save_instruments_to_db($input) {
+        global $wpdb;
+        $table = $wpdb->prefix . 'taa_instruments';
+
+        // 1. Parse the Text Area Input
+        $lines = array_filter(explode("\n", $input));
+        
+        if (!empty($lines)) {
+            // 2. Clear Table (Bulk Replace Strategy)
+            $wpdb->query("TRUNCATE TABLE $table");
+
+            // 3. Insert New Rows
+            foreach ($lines as $line) {
+                $parts = explode('|', trim($line));
+                // Format: NAME|LOT|MODE|REQ
+                if (count($parts) >= 2) {
+                    $name = strtoupper(trim($parts[0]));
+                    $lot  = intval(trim($parts[1]));
+                    $mode = isset($parts[2]) ? trim($parts[2]) : 'BOTH';
+                    $req  = isset($parts[3]) ? trim($parts[3]) : 'NO';
+
+                    $wpdb->insert($table, [
+                        'name' => $name,
+                        'lot_size' => $lot,
+                        'mode' => $mode,
+                        'strike_req' => $req
+                    ]);
+                }
+            }
+        }
+        
+        // Return input so it updates the local option cache too (as backup)
+        return $input; 
     }
 }

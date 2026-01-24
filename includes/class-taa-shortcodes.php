@@ -138,27 +138,33 @@ class TAA_Shortcodes {
 		}
 	}
 
-	/**
+/**
 	 * Render: Analyzer
 	 */
 	public function render_analyzer() {
 		// Input Mode Check (AI/Manual)
 		$input_mode = get_option('taag_input_mode', 'ai');
 		
-		// [FIX] Define Default Lots
+		// Default Lots
 		$global_lots = get_option('taag_default_total_lots', '6');
 
-		// [FIX] Parse Instruments List for Dropdown
-		$raw_instruments = get_option('taag_instruments_list', '');
-		$lines = array_filter(explode("\n", $raw_instruments));
+		// [UPDATED] FETCH INSTRUMENTS FROM DB TABLE
+		global $wpdb;
+		$table_inst = $wpdb->prefix . 'taa_instruments';
+		
+		// We use ARRAY_A to get an associative array
+		$db_rows = $wpdb->get_results("SELECT * FROM $table_inst ORDER BY name ASC", ARRAY_A);
+		
 		$instruments = [];
-		foreach($lines as $line) {
-			$parts = explode('|', trim($line));
-			if(count($parts) >= 2) {
-				// The value passed to JS needs to be the full config string
+		if ($db_rows) {
+			foreach($db_rows as $row) {
+				// Reconstruct the "Value" string that the JS expects: "NAME|LOT|MODE|REQ"
+				// This ensures we don't break your existing JS logic in taa-analyzer.js
+				$combined_val = $row['name'] . '|' . $row['lot_size'] . '|' . $row['mode'] . '|' . $row['strike_req'];
+				
 				$instruments[] = [
-					'name'  => trim($parts[0]),
-					'value' => trim($line)
+					'name'  => $row['name'],
+					'value' => $combined_val
 				];
 			}
 		}
