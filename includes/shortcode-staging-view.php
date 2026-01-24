@@ -3,24 +3,44 @@
 $is_ajax = (isset($taa_is_ajax) && $taa_is_ajax === true);
 if (!isset($today)) $today = current_time('Y-m-d');
 
-// --- 1. FETCH DATA (Initial Load) ---
+// --- 1. FETCH AND PRE-SCAN DATA ---
 global $wpdb;
 $rows = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}taa_staging WHERE DATE(created_at) = '$today' ORDER BY id DESC");
 
-// Initial Stats (Used for first server-side render)
 $stats = [ 'total' => 0, 'buy' => 0, 'sell' => 0, 'approved' => 0, 'rejected' => 0, 'pending' => 0 ];
+$counts = []; 
+$group_status = []; // Tracks finalized states for duplicate groups
+$total_approved_profit = 0;
+
 if ($rows) {
     foreach ($rows as $r) {
         $stats['total']++;
         if (strtoupper($r->dir) === 'BUY') $stats['buy']++;
         if (strtoupper($r->dir) === 'SELL') $stats['sell']++;
-        if (strpos($r->status, 'APPROVED') !== false) $stats['approved']++;
-        elseif ($r->status === 'REJECTED') $stats['rejected']++;
-        else $stats['pending']++;
+        
+        $is_app = (stripos($r->status, 'APPROVED') !== false);
+        if ($is_app) {
+            $stats['approved']++;
+            $total_approved_profit += floatval($r->profit);
+        } elseif ($r->status === 'REJECTED') {
+            $stats['rejected']++;
+        } else {
+            $stats['pending']++;
+        }
+
+        // Grouping Key: Instrument + Strike + Direction
+        $k = $r->chart_name . '|' . $r->strike . '|' . $r->dir;
+        $counts[$k] = (isset($counts[$k]) ? $counts[$k] : 0) + 1;
+
+        // Track if any member of this group is finalized
+        if (!isset($group_status[$k])) {
+            $group_status[$k] = ['approved' => false, 'rejected' => false];
+        }
+        if ($is_app) $group_status[$k]['approved'] = true;
+        if ($r->status === 'REJECTED') $group_status[$k]['rejected'] = true;
     }
 }
 
-// --- 2. RENDER HEADER (NON-AJAX ONLY) ---
 if (!$is_ajax):
 ?>
 <div class="taa-dashboard-wrapper" data-type="staging">
@@ -31,7 +51,6 @@ if (!$is_ajax):
                 style="background:#ffc107; color:#000; border:none; padding:6px 12px; border-radius:4px; cursor:pointer; font-weight:bold; font-size:13px; display:flex; align-items:center; gap:5px;">
                 📉 Daily Report
             </button>
-
             <input type="date" class="taa-date-input" value="<?php echo esc_attr($today); ?>" style="padding:5px; border-radius:4px; border:1px solid #ccc;">
             <button class="taa-btn-reload taa-refresh-btn">↻ Refresh</button>
         </div>
@@ -50,37 +69,35 @@ if (!$is_ajax):
         <table class="taa-staging-table">
             <thead>
                 <tr>
-                    <th>#</th>
-                    <th>Time</th><th>Dir</th><th>Instrument</th><th>Strike</th><th>Entry</th><th>Target</th><th>SL</th><th>Risk</th><th>RR</th><th>Profit</th><th>Actions</th><th>Chart</th>
+                    <th>#</th><th>Time</th><th>Dir</th><th>Instrument</th><th>Strike</th><th>Entry</th><th>Target</th><th>SL</th><th>Risk</th><th>RR</th><th>Profit</th><th>Actions</th><th>Chart</th>
                 </tr>
             </thead>
             <tbody class="taa-table-body">
 <?php endif; ?>
 
                 <?php 
-                $counts = []; 
-                $total_approved_profit = 0;
-
-                if ($rows) { 
-                    foreach($rows as $r) { 
-                        $k = $r->chart_name . '|' . $r->strike . '|' . $r->dir; 
-                        $counts[$k] = ($counts[$k]??0)+1; 
-                        if (strpos($r->status, 'APPROVED') !== false) {
-                            $total_approved_profit += floatval($r->profit);
-                        }
-                    } 
-                }
-                
                 $i = 1;
-
                 if($rows):
                     foreach($rows as $r): 
-                        $is_dup = (isset($counts[$r->chart_name.'|'.$r->strike.'|'.$r->dir]) && $counts[$r->chart_name.'|'.$r->strike.'|'.$r->dir] > 1 && $r->status === 'PENDING');
-                        $is_approved = (strpos($r->status, 'APPROVED') !== false); 
-                        $is_rejected = ($r->status === 'REJECTED');
+                        $key = $r->chart_name . '|' . $r->strike . '|' . $r->dir;
+                        $is_dup_group = (isset($counts[$key]) && $counts[$key] > 1);
+                        $is_this_approved = (stripos($r->status, 'APPROVED') !== false);
+                        $is_this_rejected = ($r->status === 'REJECTED');
+
+                        // DYNAMIC LABEL LOGIC
+                        $dup_label = '';
+                        if ($is_dup_group && $r->status === 'PENDING') {
+                            if ($group_status[$key]['rejected']) {
+                                $dup_label = ''; // Hide if matching duplicate was rejected
+                            } elseif ($group_status[$key]['approved']) {
+                                $dup_label = 'DUPLICATE APPROVED';
+                            } else {
+                                $dup_label = 'DUPLICATE PENDING';
+                            }
+                        }
 
                         $mkt_data = [];
-                        if ($is_approved) {
+                        if ($is_this_approved) {
                             $mkt_data = [
                                 'id'     => $r->id, 'dir' => $r->dir, 'inst' => $r->chart_name, 'strike' => $r->strike,
                                 'entry'  => $r->entry, 'target' => $r->target, 'sl' => $r->sl,
@@ -90,7 +107,7 @@ if (!$is_ajax):
                             ];
                         }
                     ?>
-                    <tr id="row-<?php echo $r->id; ?>" style="<?php echo $is_dup ? 'background:#fffbea;' : ''; ?>">
+                    <tr id="row-<?php echo $r->id; ?>" style="<?php echo !empty($dup_label) ? 'background:#fffbea;' : ''; ?>">
                         <td><?php echo $i++; ?></td>
                         <td><?php echo date('H:i', strtotime($r->created_at)); ?></td>
                         <td><span class="taa-badge <?php echo $r->dir=='BUY'?'taa-buy':'taa-sell'; ?>"><?php echo $r->dir; ?></span></td>
@@ -104,17 +121,21 @@ if (!$is_ajax):
                         <td style="color:green;"><?php echo TAA_DB::format_inr($r->profit); ?></td>
                         
                         <td>
-                            <?php if($is_approved): ?>
+                            <?php if($is_this_approved): ?>
                                 <span class="taa-badge" style="background:#28a745;">APPROVED</span>
                                 <button type="button" class="taa-btn-marketing" 
                                     data-trade='<?php echo json_encode($mkt_data, JSON_HEX_APOS | JSON_HEX_QUOT); ?>'
                                     style="background:#6f42c1; color:white; border:none; border-radius:3px; cursor:pointer; font-size:10px; padding:3px 6px; margin-left:5px;">
                                     📢 Ads
                                 </button>
-                            <?php elseif($is_rejected): ?>
+                            <?php elseif($is_this_rejected): ?>
                                 <span class="taa-badge" style="background:#dc3545;">REJECTED</span>
                             <?php else: ?>
-                                <?php if($is_dup): ?><span style="font-size:10px; color:orange; display:block;">DUPLICATE</span><?php endif; ?>
+                                <?php if(!empty($dup_label)): ?>
+                                    <span style="font-size:10px; color:<?php echo ($dup_label === 'DUPLICATE APPROVED') ? '#28a745' : 'orange'; ?>; display:block; font-weight:bold; margin-bottom:5px;">
+                                        <?php echo $dup_label; ?>
+                                    </span>
+                                <?php endif; ?>
                                 <button class="taa-btn-approve taa-js-approve" data-id="<?php echo $r->id; ?>">✔</button>
                                 <button class="taa-btn-delete taa-js-reject-init" 
                                     data-id="<?php echo $r->id; ?>" 
@@ -149,7 +170,6 @@ if (!$is_ajax):
                     </tr>
                     <?php endforeach; 
                     
-                    // Total Row
                     echo "<tr style='background:#e8f5e9; font-weight:bold; border-top:2px solid #28a745;'><td colspan='10' style='text-align:right;'>TOTAL APPROVED PROFIT:</td><td style='color:green; font-size:14px;'>" . TAA_DB::format_inr($total_approved_profit) . "</td><td colspan='2'></td></tr>";
 
                 else:
