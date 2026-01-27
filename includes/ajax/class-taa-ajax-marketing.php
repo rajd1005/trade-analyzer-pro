@@ -4,7 +4,7 @@ if ( ! defined( 'ABSPATH' ) ) exit;
 class TAA_Ajax_Marketing {
 
     public function __construct() {
-        // 1. Telegram (Manual)
+        // 1. Telegram (Manual Upload from device)
         add_action( 'wp_ajax_taa_send_marketing_telegram', [ $this, 'send_to_telegram' ] );
         
         // 2. Remote Publish (Standard Upload)
@@ -13,21 +13,21 @@ class TAA_Ajax_Marketing {
         // 3. Remote Delete
         add_action( 'wp_ajax_taa_delete_published_image', [ $this, 'delete_image_remote' ] );
         
-        // 4. Remote Fetch (Proxy)
+        // 4. Remote Fetch (Proxy for Gallery)
         add_action( 'wp_ajax_taa_load_published_gallery', [ $this, 'load_gallery_remote' ] );
         add_action( 'wp_ajax_nopriv_taa_load_published_gallery', [ $this, 'load_gallery_remote' ] );
 
-        // 5. Send Published Image to Telegram (Uses Download Proxy)
+        // 5. Send Published Image to Telegram (Table Button ✈)
         add_action( 'wp_ajax_taa_send_published_telegram', [ $this, 'send_published_telegram' ] );
 
-        // 6. [RESTORED] Force Download Marketing Image (Proxy)
+        // 6. Force Download Marketing Image (Table Button ⬇)
         add_action( 'wp_ajax_taa_download_marketing_image', [ $this, 'download_marketing_image' ] );
         add_action( 'wp_ajax_nopriv_taa_download_marketing_image', [ $this, 'download_marketing_image' ] );
     }
 
     /**
-     * [RESTORED] Force Download Remote Marketing Image
-     * This handles the ⬇ button and the Telegram image stream.
+     * [FIXED] Force Download Remote Marketing Image
+     * Handles the ⬇ button. Appends ID to filename to prevent conflicts.
      */
     public function download_marketing_image() {
         $id = isset($_GET['id']) ? intval($_GET['id']) : 0;
@@ -40,12 +40,17 @@ class TAA_Ajax_Marketing {
             wp_die('Image not found or not published.');
         }
 
-        // Clean Filename
+        // Clean Filename Construction
+        // Pattern: INST_STRIKE_DIR_DATE_ID.jpg
         $name_part = preg_replace('/[^A-Z0-9]/', '', strtoupper($row->chart_name));
-        $strike_part = !empty($row->strike) ? '_' . preg_replace('/[^A-Z0-9]/', '', strtoupper($row->strike)) : '';
+        $strike_part = !empty($row->strike) && $row->strike !== '-' ? '_' . preg_replace('/[^A-Z0-9]/', '', strtoupper($row->strike)) : '';
         $dir_part = '_' . strtoupper($row->dir);
         $date_part = '_' . date('Y-m-d', strtotime($row->created_at));
-        $filename = $name_part . $strike_part . $dir_part . $date_part . '.jpg';
+        
+        // [CRITICAL] Unique ID prevents conflicts if multiple trades have same name
+        $id_part = '_ID' . $id; 
+        
+        $filename = $name_part . $strike_part . $dir_part . $date_part . $id_part . '.jpg';
 
         // Stream Content
         $response = wp_remote_get($row->marketing_url, [
@@ -74,6 +79,7 @@ class TAA_Ajax_Marketing {
 
     /**
      * Send Published Image to Telegram
+     * Uses DIRECT URL + Timestamp to ensure reliability (Fixes Timeout Issue).
      */
     public function send_published_telegram() {
         check_ajax_referer( 'taa_nonce', 'security' );
@@ -99,11 +105,12 @@ class TAA_Ajax_Marketing {
 
         $message = str_replace(array_keys($replacements), array_values($replacements), $template);
 
-        // GENERATE PROXY URL (The "Download Link")
-        // This ensures Telegram gets the exact same file as the user download.
-        $proxy_url = admin_url('admin-ajax.php?action=taa_download_marketing_image&id=' . $id . '&t=' . time());
+        // [FIX] Use Direct URL with Cache Buster
+        // We do NOT use the proxy here because Telegram often times out on double-hops.
+        // We append time() so Telegram treats it as a new file (bypassing cache).
+        $direct_url = add_query_arg('t', time(), $row->marketing_url);
 
-        $res = TAA_DB::send_telegram($message, $proxy_url);
+        $res = TAA_DB::send_telegram($message, $direct_url);
 
         if ($res) wp_send_json_success('Sent to Telegram');
         else wp_send_json_error('Telegram API Failed');
