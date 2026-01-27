@@ -77,9 +77,10 @@ class TAA_Ajax_Marketing {
         exit;
     }
 
-    /**
+     /**
      * Send Published Image to Telegram
-     * Uses DIRECT URL + Timestamp to ensure reliability (Fixes Timeout Issue).
+     * [FIXED] Downloads remote image to temp file -> Uploads to Telegram
+     * This fixes the "Intermittent Failure" caused by Telegram's server timeouts.
      */
     public function send_published_telegram() {
         check_ajax_referer( 'taa_nonce', 'security' );
@@ -93,6 +94,7 @@ class TAA_Ajax_Marketing {
 
         if (empty($row->marketing_url)) wp_send_json_error('Image not published yet.');
 
+        // 1. Prepare Caption
         $template = get_option('taag_telegram_template', "🚀 *{chart_name}* ({dir})\n\n💰 Profit: {profit}\n⚖️ RR: {rr}\n🎯 Strike: {strike}");
         
         $replacements = [
@@ -105,15 +107,43 @@ class TAA_Ajax_Marketing {
 
         $message = str_replace(array_keys($replacements), array_values($replacements), $template);
 
-        // [FIX] Use Direct URL with Cache Buster
-        // We do NOT use the proxy here because Telegram often times out on double-hops.
-        // We append time() so Telegram treats it as a new file (bypassing cache).
-        $direct_url = add_query_arg('t', time(), $row->marketing_url);
+        // 2. Download Remote Image to Temp File
+        $temp_file = tempnam(sys_get_temp_dir(), 'taa_tg_');
+        $response = wp_remote_get($row->marketing_url, array('timeout' => 30, 'sslverify' => false));
 
-        $res = TAA_DB::send_telegram($message, $direct_url);
+        if ( is_wp_error( $response ) ) {
+            @unlink($temp_file);
+            wp_send_json_error('Failed to download image from server: ' . $response->get_error_message());
+        }
 
-        if ($res) wp_send_json_success('Sent to Telegram');
-        else wp_send_json_error('Telegram API Failed');
+        $image_data = wp_remote_retrieve_body($response);
+        if ( empty($image_data) ) {
+            @unlink($temp_file);
+            wp_send_json_error('Empty image data received.');
+        }
+
+        file_put_contents($temp_file, $image_data);
+
+        // 3. Send using the robust cURL method
+        $token = get_option( 'taag_telegram_token' );
+        $chat_id = get_option( 'taag_telegram_chat_id' );
+
+        if ( empty($token) || empty($chat_id) ) {
+            @unlink($temp_file);
+            wp_send_json_error('Telegram settings missing.');
+        }
+
+        // Reuse your existing private method which handles CURLFile correctly
+        $res = $this->post_image_to_telegram($token, $chat_id, $temp_file, $message);
+
+        // 4. Cleanup
+        @unlink($temp_file);
+
+        if ($res['success']) {
+            wp_send_json_success('Sent to Telegram');
+        } else {
+            wp_send_json_error('Telegram Error: ' . ($res['message'] ?? 'Unknown'));
+        }
     }
 
     /**
@@ -294,7 +324,7 @@ class TAA_Ajax_Marketing {
         $url = "https://api.telegram.org/bot{$token}/sendPhoto";
         if ( ! function_exists( 'curl_init' ) ) return [ 'success' => false, 'message' => 'CURL missing' ];
         $cfile = new CURLFile( $file_path, 'image/jpeg', 'trade.jpg' );
-        $data = [ 'chat_id' => $chat_id, 'photo' => $cfile, 'caption' => $caption ];
+        $data = [ 'chat_id' => $chat_id, 'photo' => $cfile, 'caption' => $caption, 'parse_mode' => 'Markdown' ];
         $ch = curl_init(); curl_setopt($ch, CURLOPT_URL, $url); curl_setopt($ch, CURLOPT_POST, 1);
         curl_setopt($ch, CURLOPT_POSTFIELDS, $data); curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         $res = curl_exec($ch); $err = curl_error($ch); curl_close($ch);
