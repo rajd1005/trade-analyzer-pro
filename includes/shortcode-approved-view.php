@@ -2,7 +2,6 @@
 $is_ajax = (isset($taa_is_ajax) && $taa_is_ajax === true);
 if (!isset($today)) $today = current_time('Y-m-d');
 
-// --- FETCH & STATS ---
 global $wpdb;
 $rows = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}taa_staging WHERE status LIKE 'APPROVED%' AND DATE(created_at) = '$today' ORDER BY id DESC");
 
@@ -26,7 +25,6 @@ if (!$is_ajax):
                 style="background:#ffc107; color:#000; border:none; padding:6px 12px; border-radius:4px; cursor:pointer; font-weight:bold; font-size:13px; display:flex; align-items:center; gap:5px;">
                 📉 Daily Report
             </button>
-
             <input type="date" class="taa-date-input" value="<?php echo esc_attr($today); ?>" style="padding:5px; border-radius:4px; border:1px solid #ccc;">
             <button class="taa-btn-reload taa-refresh-btn">↻ Refresh</button>
         </div>
@@ -59,31 +57,20 @@ if (!$is_ajax):
                     foreach($rows as $key => $r): 
                         $total_profit_day += floatval($r->profit);
                         $is_updated = (strpos($r->status, 'UPDATED') !== false);                       
-// [UPDATED] Filename Format: Instrument_Strike_Date
-$date_str = date('d-M-Y', strtotime($r->created_at)); 
-$clean_chart_name = preg_replace('/[^A-Za-z0-9\- ]/', '', $r->chart_name); 
-
-// Start with Instrument Name
-$download_name = $clean_chart_name;
-
-// Add Strike (if exists)
-if(!empty($r->strike)) {
-    $download_name .= '_' . preg_replace('/[^A-Za-z0-9\- ]/', '', $r->strike);
-}
-
-// Add Date at the end
-$download_name .= '_' . $date_str;
-                        $ext = pathinfo($r->image_url, PATHINFO_EXTENSION);
-                        if(empty($ext) || strlen($ext) > 4) $ext = 'png'; 
-                        $full_filename = $download_name . '.' . $ext;
-                        $download_link = admin_url('admin-ajax.php') . '?action=taa_download_chart&req_url=' . urlencode($r->image_url) . '&req_name=' . urlencode($full_filename);
+                        
+                        $date_str = date('d-M-Y', strtotime($r->created_at)); 
+                        $clean_chart_name = preg_replace('/[^A-Za-z0-9\- ]/', '', $r->chart_name); 
+                        $download_name = $clean_chart_name . (!empty($r->strike) ? '_' . preg_replace('/[^A-Za-z0-9\- ]/', '', $r->strike) : '') . '_' . $date_str;
+                        $ext = pathinfo($r->image_url, PATHINFO_EXTENSION) ?: 'png'; 
+                        $dl_link = admin_url('admin-ajax.php') . '?action=taa_download_chart&req_url=' . urlencode($r->image_url) . '&req_name=' . urlencode($download_name . '.' . $ext);
 
                         $mkt_data = [
                             'id'     => $r->id, 'dir' => $r->dir, 'inst' => $r->chart_name, 'strike' => $r->strike,
                             'entry'  => $r->entry, 'target' => $r->target, 'sl' => $r->sl,
                             'risk'   => TAA_DB::format_inr($r->risk), 'rr' => $r->rr_ratio,
                             'profit' => TAA_DB::format_inr($r->profit), 'lots' => $r->total_lots, 'img' => $r->image_url,
-                            'trade_date' => date('Y-m-d', strtotime($r->created_at))
+                            'trade_date' => date('Y-m-d', strtotime($r->created_at)),
+                            'marketing_url' => $r->marketing_url // [NEW]
                         ];
                     ?>
                     <tr data-lots="<?php echo esc_attr($r->total_lots); ?>">
@@ -105,7 +92,7 @@ $download_name .= '_' . $date_str;
                         <td style="color:green;"><?php echo TAA_DB::format_inr($r->profit); ?></td>
                         <td style="white-space: nowrap;">
                             <?php if($r->image_url): ?>
-                                <a href="<?php echo $download_link; ?>" class="taa-btn-view" style="background-color:#0073aa; color:white; padding:4px 8px; font-size:12px; border-radius:3px; margin-right:5px; text-decoration:none;">⬇</a>
+                                <a href="<?php echo $dl_link; ?>" class="taa-btn-view" style="background-color:#0073aa; color:white; padding:4px 8px; font-size:12px; border-radius:3px; margin-right:5px; text-decoration:none;">⬇</a>
                                 <button type="button" class="taa-btn-marketing" 
                                     data-trade='<?php echo json_encode($mkt_data, JSON_HEX_APOS | JSON_HEX_QUOT); ?>'
                                     style="background:#6f42c1; color:white; border:none; border-radius:3px; cursor:pointer; font-size:11px; padding:4px 8px;">
@@ -114,7 +101,7 @@ $download_name .= '_' . $date_str;
                                 <?php if(!empty($r->marketing_url)): ?>
                                     <button class="taa-btn-view taa-tbl-telegram-btn" data-id="<?php echo $r->id; ?>" style="background:#0088cc; color:white; border:none; margin-left:5px; padding:4px 8px; font-size:11px; cursor:pointer;" title="Send to Telegram">✈</button>
                                     <button class="taa-btn-view taa-js-view-marketing" data-img="<?php echo esc_url($r->marketing_url); ?>" style="background:#17a2b8; color:white; border:none; margin-left:5px; padding:4px 8px; font-size:11px;">View</button>
-                                    <a href="<?php echo esc_url(add_query_arg('t', time(), $r->marketing_url)); ?>" target="_blank" class="taa-btn-view" style="background:#6c757d; color:white; border:none; margin-left:5px; padding:4px 8px; font-size:11px; text-decoration:none;">⬇</a>
+                                    <a href="<?php echo admin_url('admin-ajax.php?action=taa_download_marketing_image&id=' . $r->id); ?>" class="taa-btn-view" style="background:#6c757d; color:white; border:none; margin-left:5px; padding:4px 8px; font-size:11px; text-decoration:none; display:inline-block;" title="Download Full Resolution">⬇</a>
                                 <?php endif; ?>
                             <?php endif; ?>
                         </td>
@@ -125,7 +112,6 @@ $download_name .= '_' . $date_str;
                     echo "<tr><td colspan='12' style='text-align:center; padding:20px;'>No approved trades found.</td></tr>";
                 endif; 
                 ?>
-                
 <?php if (!$is_ajax): ?>
             </tbody>
         </table>

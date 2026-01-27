@@ -4,10 +4,10 @@ if ( ! defined( 'ABSPATH' ) ) exit;
 class TAA_Ajax_Marketing {
 
     public function __construct() {
-        // 1. Telegram
+        // 1. Telegram (Manual)
         add_action( 'wp_ajax_taa_send_marketing_telegram', [ $this, 'send_to_telegram' ] );
         
-        // 2. Remote Publish (Standard Upload - No Overwrite)
+        // 2. Remote Publish (Standard Upload)
         add_action( 'wp_ajax_taa_publish_marketing_image', [ $this, 'publish_image_remote' ] );
         
         // 3. Remote Delete
@@ -17,29 +17,76 @@ class TAA_Ajax_Marketing {
         add_action( 'wp_ajax_taa_load_published_gallery', [ $this, 'load_gallery_remote' ] );
         add_action( 'wp_ajax_nopriv_taa_load_published_gallery', [ $this, 'load_gallery_remote' ] );
 
-        // 5. Send Published Image to Telegram (From Table Button)
+        // 5. Send Published Image to Telegram (Uses Download Proxy)
         add_action( 'wp_ajax_taa_send_published_telegram', [ $this, 'send_published_telegram' ] );
+
+        // 6. [RESTORED] Force Download Marketing Image (Proxy)
+        add_action( 'wp_ajax_taa_download_marketing_image', [ $this, 'download_marketing_image' ] );
+        add_action( 'wp_ajax_nopriv_taa_download_marketing_image', [ $this, 'download_marketing_image' ] );
     }
 
     /**
-     * Send Published Image to Telegram (Triggered from Table)
+     * [RESTORED] Force Download Remote Marketing Image
+     * This handles the ⬇ button and the Telegram image stream.
+     */
+    public function download_marketing_image() {
+        $id = isset($_GET['id']) ? intval($_GET['id']) : 0;
+        if (!$id) wp_die('Invalid ID');
+
+        global $wpdb;
+        $row = $wpdb->get_row("SELECT * FROM {$wpdb->prefix}taa_staging WHERE id = $id");
+        
+        if (!$row || empty($row->marketing_url)) {
+            wp_die('Image not found or not published.');
+        }
+
+        // Clean Filename
+        $name_part = preg_replace('/[^A-Z0-9]/', '', strtoupper($row->chart_name));
+        $strike_part = !empty($row->strike) ? '_' . preg_replace('/[^A-Z0-9]/', '', strtoupper($row->strike)) : '';
+        $dir_part = '_' . strtoupper($row->dir);
+        $date_part = '_' . date('Y-m-d', strtotime($row->created_at));
+        $filename = $name_part . $strike_part . $dir_part . $date_part . '.jpg';
+
+        // Stream Content
+        $response = wp_remote_get($row->marketing_url, [
+            'timeout' => 30,
+            'sslverify' => false,
+        ]);
+
+        if (is_wp_error($response)) {
+            wp_die('Error fetching remote image: ' . $response->get_error_message());
+        }
+
+        $body = wp_remote_retrieve_body($response);
+        
+        header('Content-Description: File Transfer');
+        header('Content-Type: image/jpeg');
+        header('Content-Disposition: attachment; filename="' . $filename . '"');
+        header('Content-Transfer-Encoding: binary');
+        header('Expires: 0');
+        header('Cache-Control: must-revalidate');
+        header('Pragma: public');
+        header('Content-Length: ' . strlen($body));
+        
+        echo $body;
+        exit;
+    }
+
+    /**
+     * Send Published Image to Telegram
      */
     public function send_published_telegram() {
         check_ajax_referer( 'taa_nonce', 'security' );
         
-        // 1. Get Trade ID
         $id = intval($_POST['id']);
         if (!$id) wp_send_json_error('Invalid ID');
 
-        // 2. Fetch Trade Data
         global $wpdb;
         $row = $wpdb->get_row("SELECT * FROM {$wpdb->prefix}taa_staging WHERE id = $id");
         if (!$row) wp_send_json_error('Trade not found');
 
-        // 3. Validate Marketing URL (Fetched from IMAGE website and stored in DB)
         if (empty($row->marketing_url)) wp_send_json_error('Image not published yet.');
 
-        // 4. Prepare Message from Template
         $template = get_option('taag_telegram_template', "🚀 *{chart_name}* ({dir})\n\n💰 Profit: {profit}\n⚖️ RR: {rr}\n🎯 Strike: {strike}");
         
         $replacements = [
@@ -52,15 +99,19 @@ class TAA_Ajax_Marketing {
 
         $message = str_replace(array_keys($replacements), array_values($replacements), $template);
 
-        // 5. Send using the Stored Remote URL
-        $res = TAA_DB::send_telegram($message, $row->marketing_url);
+        // GENERATE PROXY URL (The "Download Link")
+        // This ensures Telegram gets the exact same file as the user download.
+        $proxy_url = admin_url('admin-ajax.php?action=taa_download_marketing_image&id=' . $id . '&t=' . time());
+
+        $res = TAA_DB::send_telegram($message, $proxy_url);
 
         if ($res) wp_send_json_success('Sent to Telegram');
         else wp_send_json_error('Telegram API Failed');
     }
 
     /**
-     * Publish Image (Proxy to Remote Server - Standard Upload)
+     * Publish Image (Standard Upload)
+     * [Logic: Prevents re-publishing if 'marketing_url' exists]
      */
     public function publish_image_remote() {
         check_ajax_referer( 'taa_nonce', 'security' );
@@ -68,13 +119,23 @@ class TAA_Ajax_Marketing {
         
         if ( empty( $_FILES['file'] ) ) wp_send_json_error( 'No file received' );
 
+        $trade_id = isset($_POST['id']) ? intval($_POST['id']) : 0;
+
+        // Check if already published
+        if ($trade_id > 0) {
+            global $wpdb;
+            $existing = $wpdb->get_var( $wpdb->prepare("SELECT marketing_url FROM {$wpdb->prefix}taa_staging WHERE id = %d", $trade_id) );
+            if (!empty($existing)) {
+                wp_send_json_error('ALREADY PUBLISHED. Please delete the existing image from the Gallery first.');
+            }
+        }
+
         // 1. Prepare Data
         $raw_name = sanitize_text_field( $_POST['name'] );
         $name = trim(strtoupper($raw_name));
         $date = sanitize_text_field( $_POST['date'] ); 
-        $trade_id = isset($_POST['id']) ? intval($_POST['id']) : 0;
 
-        // 2. Direct Upload (No check, No delete)
+        // 2. Direct Upload
         $remote_url = 'https://image.rdalgo.in/wp-json/rdalgo/v1/upload';
         $boundary = wp_generate_password( 24 );
         $headers  = array( 'content-type' => 'multipart/form-data; boundary=' . $boundary );
@@ -95,7 +156,6 @@ class TAA_Ajax_Marketing {
         }
         $payload .= '--' . $boundary . '--';
 
-        // 3. Send Request
         $response = wp_remote_post( $remote_url, array(
             'headers' => $headers, 'body' => $payload, 'timeout' => 45
         ));
@@ -106,10 +166,9 @@ class TAA_Ajax_Marketing {
         $data = json_decode( $body, true );
         
         if ( isset( $data['success'] ) && $data['success'] ) {
-            // Update Local Database with Marketing URL if ID is present
+            // Update Local Database
             if ($trade_id > 0) {
                 global $wpdb;
-                // Try to find the URL in the response
                 $mkt_url = '';
                 if (!empty($data['image_url'])) $mkt_url = $data['image_url'];
                 elseif (!empty($data['url'])) $mkt_url = $data['url'];
@@ -188,11 +247,10 @@ class TAA_Ajax_Marketing {
         $data = json_decode( $body, true );
 
         if ( isset( $data['success'] ) && $data['success'] ) {
-            // [UPDATE] Remove from local database to hide View/Telegram buttons
+            // Remove from local database to reset "Publish" state
             if (!empty($image_url)) {
                 global $wpdb;
                 $table = $wpdb->prefix . 'taa_staging';
-                // Clear marketing_url where it matches the deleted image URL
                 $wpdb->query( $wpdb->prepare( 
                     "UPDATE $table SET marketing_url = '' WHERE marketing_url = %s", 
                     $image_url 
@@ -206,7 +264,7 @@ class TAA_Ajax_Marketing {
     }
 
     /**
-     * Send to Telegram (Manual Upload)
+     * Send to Telegram (Manual)
      */
     public function send_to_telegram() {
         check_ajax_referer( 'taa_nonce', 'security' );
@@ -214,14 +272,11 @@ class TAA_Ajax_Marketing {
         if ( ! current_user_can( 'manage_options' ) && ! current_user_can( 'edit_posts' ) ) {
             wp_send_json_error( 'Unauthorized.' );
         }
-
-        $token   = get_option( 'taag_telegram_token' );
+        $token = get_option( 'taag_telegram_token' );
         $chat_id = get_option( 'taag_telegram_chat_id' );
-        if ( empty( $token ) || empty( $chat_id ) ) wp_send_json_error( 'Telegram Settings Missing.' );
-        if ( empty( $_FILES['image'] ) ) wp_send_json_error( 'Image Missing.' );
+        if ( empty($token) || empty($chat_id) || empty($_FILES['image']) ) wp_send_json_error( 'Missing Data' );
 
         $caption = isset( $_POST['caption'] ) ? sanitize_text_field( $_POST['caption'] ) : 'Trade Setup';
-        
         $response = $this->post_image_to_telegram( $token, $chat_id, $_FILES['image']['tmp_name'], $caption );
 
         if ( $response['success'] ) wp_send_json_success( 'Sent to Telegram!' );

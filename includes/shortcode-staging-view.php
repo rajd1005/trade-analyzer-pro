@@ -3,13 +3,12 @@
 $is_ajax = (isset($taa_is_ajax) && $taa_is_ajax === true);
 if (!isset($today)) $today = current_time('Y-m-d');
 
-// --- 1. FETCH AND PRE-SCAN DATA ---
 global $wpdb;
 $rows = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}taa_staging WHERE DATE(created_at) = '$today' ORDER BY id DESC");
 
 $stats = [ 'total' => 0, 'buy' => 0, 'sell' => 0, 'approved' => 0, 'rejected' => 0, 'pending' => 0 ];
 $counts = []; 
-$group_status = []; // Tracks finalized states for duplicate groups
+$group_status = []; 
 $total_approved_profit = 0;
 
 if ($rows) {
@@ -28,14 +27,9 @@ if ($rows) {
             $stats['pending']++;
         }
 
-        // Grouping Key: Instrument + Strike + Direction
         $k = $r->chart_name . '|' . $r->strike . '|' . $r->dir;
         $counts[$k] = (isset($counts[$k]) ? $counts[$k] : 0) + 1;
-
-        // Track if any member of this group is finalized
-        if (!isset($group_status[$k])) {
-            $group_status[$k] = ['approved' => false, 'rejected' => false];
-        }
+        if (!isset($group_status[$k])) $group_status[$k] = ['approved' => false, 'rejected' => false];
         if ($is_app) $group_status[$k]['approved'] = true;
         if ($r->status === 'REJECTED') $group_status[$k]['rejected'] = true;
     }
@@ -84,16 +78,10 @@ if (!$is_ajax):
                         $is_this_approved = (stripos($r->status, 'APPROVED') !== false);
                         $is_this_rejected = ($r->status === 'REJECTED');
 
-                        // DYNAMIC LABEL LOGIC
                         $dup_label = '';
                         if ($is_dup_group && $r->status === 'PENDING') {
-                            if ($group_status[$key]['approved']) {
-    $dup_label = 'DUPLICATE APPROVED';
-} elseif ($group_status[$key]['rejected']) {
-    $dup_label = ''; // Only hide the label if there is NO approved trade, but there is a rejected one
-} else {
-    $dup_label = 'DUPLICATE PENDING';
-}
+                            if ($group_status[$key]['approved']) $dup_label = 'DUPLICATE APPROVED';
+                            elseif (!$group_status[$key]['rejected']) $dup_label = 'DUPLICATE PENDING';
                         }
 
                         $mkt_data = [];
@@ -103,7 +91,8 @@ if (!$is_ajax):
                                 'entry'  => $r->entry, 'target' => $r->target, 'sl' => $r->sl,
                                 'risk'   => TAA_DB::format_inr($r->risk), 'rr' => $r->rr_ratio,
                                 'profit' => TAA_DB::format_inr($r->profit), 'lots' => $r->total_lots, 'img' => $r->image_url,
-                                'trade_date' => date('Y-m-d', strtotime($r->created_at))
+                                'trade_date' => date('Y-m-d', strtotime($r->created_at)),
+                                'marketing_url' => $r->marketing_url // [NEW] Pass this to JS
                             ];
                         }
                     ?>
@@ -122,22 +111,14 @@ if (!$is_ajax):
                         
                         <td>
                         <?php if($is_this_approved): 
-                                // [NEW] Calculate Download Link for Approved Trades in Staging
                                 $date_str = date('d-M-Y', strtotime($r->created_at)); 
                                 $clean_chart_name = preg_replace('/[^A-Za-z0-9\- ]/', '', $r->chart_name); 
-                                $dl_name = $clean_chart_name;
-                                if(!empty($r->strike)) $dl_name .= '_' . preg_replace('/[^A-Za-z0-9\- ]/', '', $r->strike);
-                                $dl_name .= '_' . $date_str;
-                                
-                                $ext = pathinfo($r->image_url, PATHINFO_EXTENSION);
-                                if(empty($ext) || strlen($ext) > 4) $ext = 'png';
-                                $full_dl_name = $dl_name . '.' . $ext;
-                                $dl_link = admin_url('admin-ajax.php') . '?action=taa_download_chart&req_url=' . urlencode($r->image_url) . '&req_name=' . urlencode($full_dl_name);
+                                $dl_name = $clean_chart_name . (!empty($r->strike) ? '_' . preg_replace('/[^A-Za-z0-9\- ]/', '', $r->strike) : '') . '_' . $date_str;
+                                $ext = pathinfo($r->image_url, PATHINFO_EXTENSION) ?: 'png';
+                                $dl_link = admin_url('admin-ajax.php') . '?action=taa_download_chart&req_url=' . urlencode($r->image_url) . '&req_name=' . urlencode($dl_name . '.' . $ext);
                             ?>
                                 <span class="taa-badge" style="background:#28a745;">APPROVED</span>
-                                
                                 <a href="<?php echo $dl_link; ?>" class="taa-btn-view" style="background-color:#0073aa; color:white; padding:3px 6px; font-size:10px; border-radius:3px; margin-left:5px; text-decoration:none;">⬇</a>
-
                                 <button type="button" class="taa-btn-marketing" 
                                     data-trade='<?php echo json_encode($mkt_data, JSON_HEX_APOS | JSON_HEX_QUOT); ?>'
                                     style="background:#6f42c1; color:white; border:none; border-radius:3px; cursor:pointer; font-size:10px; padding:3px 6px; margin-left:5px;">
@@ -175,28 +156,28 @@ if (!$is_ajax):
                         <td style="white-space:nowrap;">
                             <?php if($r->image_url): ?>
                                 <a href="<?php echo esc_url($r->image_url); ?>" target="_blank" class="taa-btn-view" data-img="<?php echo esc_url($r->image_url); ?>">Raw</a>
+                                
                                 <?php if(!empty($r->marketing_url)): ?>
-                                    <button class="taa-btn-view taa-tbl-telegram-btn" data-id="<?php echo $r->id; ?>" style="background:#0088cc; color:white; border:none; margin-left:5px; padding:3px 6px; font-size:10px; cursor:pointer;" title="Send to Telegram">✈</button>
+                                    <button class="taa-btn-view taa-tbl-telegram-btn" 
+                                        data-id="<?php echo $r->id; ?>" 
+                                        style="background:#0088cc; color:white; border:none; margin-left:5px; padding:3px 6px; font-size:10px; cursor:pointer;" 
+                                        title="Send to Telegram">✈</button>
                                     <button class="taa-btn-view taa-js-view-marketing" data-img="<?php echo esc_url($r->marketing_url); ?>" style="background:#17a2b8; color:white; border:none; margin-left:5px;">View</button>
-                                    <a href="<?php echo esc_url(add_query_arg('t', time(), $r->marketing_url)); ?>" target="_blank" class="taa-btn-view" style="background:#6c757d; color:white; border:none; margin-left:5px;">⬇</a>
+                                    <a href="<?php echo admin_url('admin-ajax.php?action=taa_download_marketing_image&id=' . $r->id); ?>" class="taa-btn-view" style="background:#6c757d; color:white; border:none; margin-left:5px; text-decoration:none; display:inline-block;" title="Download Full Resolution">⬇</a>
                                 <?php endif; ?>
                             <?php else: ?>-<?php endif; ?>
                         </td>
                     </tr>
                     <?php endforeach; 
-                    
                     echo "<tr style='background:#e8f5e9; font-weight:bold; border-top:2px solid #28a745;'><td colspan='10' style='text-align:right;'>TOTAL APPROVED PROFIT:</td><td style='color:green; font-size:14px;'>" . TAA_DB::format_inr($total_approved_profit) . "</td><td colspan='2'></td></tr>";
-
                 else:
                     echo "<tr><td colspan='13' style='text-align:center; padding:20px;'>No trades for today.</td></tr>";
                 endif; 
                 ?>
-                
 <?php if (!$is_ajax): ?>
             </tbody>
         </table>
     </div>
-    
     <div id="taa-reject-modal" class="taa-modal-overlay" style="display:none;">
         <div class="taa-modal-content">
             <div class="taa-modal-header">

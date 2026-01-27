@@ -2,21 +2,19 @@
     'use strict';
 
     $(document).ready(function() {
-        console.log("TAA v34.1: Marketing (Editor Buttons Cleaned)");
+        console.log("TAA v35: Marketing (Prevent Re-Publish)");
 
         if (typeof taa_mkt_vars === 'undefined') {
             console.error("TAA ERROR: taa_mkt_vars missing.");
             return;
         }
 
-        // --- TABLE TELEGRAM BUTTON HANDLER (Keep this active for the Dashboard list) ---
+        // --- TABLE TELEGRAM BUTTON ---
         $(document).on('click', '.taa-tbl-telegram-btn', function(e) {
             e.preventDefault();
             var $btn = $(this);
             var id = $btn.data('id');
-            
             $btn.prop('disabled', true).text('...');
-            
             $.post(taa_vars.ajaxurl, {
                 action: 'taa_send_published_telegram',
                 security: taa_vars.nonce,
@@ -36,7 +34,7 @@
         });
 
         // =====================================
-        // EXISTING MARKETING MODAL CODE BELOW
+        // MARKETING MODAL
         // =====================================
 
         var activeTradeData = null;
@@ -52,46 +50,15 @@
         var tagUrl = basePath + 'tag.png';
         var contactTagUrl = basePath + 'tag-contact.png';
 
-        // --- MODAL HTML (Updated: Removed Telegram and Download Buttons) ---
         var modalHtml = `
             <style>
                 @media screen and (max-width: 768px) {
-                    .taa-mkt-modal {
-                        width: 95% !important;
-                        max-width: 100% !important;
-                        margin: 10px auto !important;
-                        top: 5% !important;
-                        left: 0 !important; 
-                        right: 0 !important;
-                        transform: none !important;
-                        max-height: 90vh;
-                        overflow-y: auto;
-                    }
-                    .taa-mkt-canvas-wrap {
-                        width: 100%;
-                        overflow: hidden;
-                        text-align: center;
-                    }
-                    #taa-mkt-canvas {
-                        width: 100% !important;
-                        height: auto !important;
-                    }
-                    .taa-mkt-actions {
-                        display: flex;
-                        flex-wrap: wrap;
-                        gap: 10px;
-                        justify-content: center;
-                    }
-                    .taa-mkt-btn {
-                        flex: 1 1 45%; 
-                        margin: 0 !important;
-                        font-size: 14px;
-                        padding: 10px;
-                    }
-                    .taa-mkt-title {
-                        font-size: 16px;
-                        margin-bottom: 10px;
-                    }
+                    .taa-mkt-modal { width: 95% !important; max-width: 100% !important; top: 5% !important; max-height: 90vh; overflow-y: auto; }
+                    .taa-mkt-canvas-wrap { width: 100%; overflow: hidden; text-align: center; }
+                    #taa-mkt-canvas { width: 100% !important; height: auto !important; }
+                    .taa-mkt-actions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
+                    .taa-mkt-btn { flex: 1 1 45%; margin: 0 !important; font-size: 14px; padding: 10px; }
+                    .taa-mkt-title { font-size: 16px; margin-bottom: 10px; }
                 }
             </style>
             <div id="taa-mkt-overlay" class="taa-mkt-overlay">
@@ -102,9 +69,7 @@
                     <div class="taa-mkt-toolbar">
                         <div class="taa-mkt-title">Marketing Preview (Drag elements to position)</div>
                         <div class="taa-mkt-actions">
-                            <button type="button" id="taa-mkt-publish" class="taa-mkt-btn" style="background-color:#28a745; color:#fff; margin-right:10px;">
-                                ☁ Publish
-                            </button>
+                            <button type="button" id="taa-mkt-publish" class="taa-mkt-btn" style="background-color:#28a745; color:#fff; margin-right:10px;">☁ Publish</button>
                             <button type="button" id="taa-mkt-close" class="taa-mkt-btn taa-btn-close">Close</button>
                         </div>
                     </div>
@@ -128,29 +93,34 @@
             draggableItems = []; 
             activeDragIndex = -1;
             
+            // [NEW] Check if Already Published
+            var $pubBtn = $('#taa-mkt-publish');
+            if (activeTradeData.marketing_url && activeTradeData.marketing_url !== "") {
+                $pubBtn.prop('disabled', true)
+                       .html('⚠ Already Published')
+                       .css({'background-color': '#6c757d', 'cursor': 'not-allowed', 'opacity': '0.7'})
+                       .attr('title', 'Delete from Marketing Gallery first to re-publish');
+            } else {
+                $pubBtn.prop('disabled', false)
+                       .html('☁ Publish')
+                       .css({'background-color': '#28a745', 'cursor': 'pointer', 'opacity': '1'})
+                       .removeAttr('title');
+            }
+            
             // 2. Open Modal
             var $overlay = $('#taa-mkt-overlay');
             $overlay.addClass('taa-active').hide().fadeIn(300);
 
-            // 3. Initialize Items & Positions
+            // 3. Initialize Items
             var isBuy = (activeTradeData.dir.toUpperCase() === 'BUY');
             
-            // A. Signal Image Position
-            if (isBuy) {
-                addDraggableImage(buySignalUrl, 563, 580, 165, true); 
-            } else {
-                addDraggableImage(sellSignalUrl, 563, 160, 165, true); 
-            }
+            if (isBuy) addDraggableImage(buySignalUrl, 563, 580, 165, true); 
+            else addDraggableImage(sellSignalUrl, 563, 160, 165, true); 
 
-            // B. Tag Images
             addDraggableImage(tagUrl, 40, 140, 300, false);
             addDraggableImage(contactTagUrl, 30, 615, 150, false);
             
-            // C. Text Positions
-            var xPos = 880; 
-            var yTop = 320;
-            var yMid = 440;
-            var yBot = 560;
+            var xPos = 880, yTop = 320, yMid = 440, yBot = 560;
 
             if (isBuy) {
                 addDraggableText("TARGET", activeTradeData.target, "#FFFFFF", xPos, yTop); 
@@ -162,27 +132,22 @@
                 addDraggableText("TARGET", activeTradeData.target, "#FFFFFF", xPos, yBot); 
             }
 
-            // 4. Force Initial Draw
             drawCanvas();
 
-            // 5. Load Chart Image
             mainChartImg = new Image();
             mainChartImg.crossOrigin = "Anonymous"; 
             mainChartImg.onload = function() { drawCanvas(); };
-            mainChartImg.onerror = function() { console.error("Failed to load chart image:", activeTradeData.img); };
             mainChartImg.src = activeTradeData.img;
 
             if (mainChartImg.complete) drawCanvas();
         });
 
-        // --- CLOSE HANDLER ---
+        // --- CLOSE ---
         $('#taa-mkt-close').on('click', function() { 
-            $('#taa-mkt-overlay').fadeOut(300, function() {
-                $(this).removeClass('taa-active');
-            }); 
+            $('#taa-mkt-overlay').fadeOut(300, function() { $(this).removeClass('taa-active'); }); 
         });
 
-        // --- PUBLISH HANDLER ---
+        // --- PUBLISH ---
         $('#taa-mkt-publish').on('click', function() {
             var $btn = $(this);
             var originalText = $btn.html();
@@ -201,18 +166,13 @@
                     var formData = new FormData();
                     formData.append('action', 'taa_publish_marketing_image');
                     formData.append('security', taa_vars.nonce);
-                    formData.append('id', activeTradeData.id); // [NEW] Pass ID for DB update
+                    formData.append('id', activeTradeData.id); 
                     
-                    // [FIX] Use Trade Date if available, otherwise Today
-                    // We check common date field names: entry_date, date, trade_date
                     var tradeDate = activeTradeData.entry_date || activeTradeData.date || activeTradeData.trade_date || taa_mkt_vars.today;
-                    // Ensure we only get the YYYY-MM-DD part (in case of datetime string)
                     var dateStr = tradeDate.split(' ')[0];
                     
-                    // NAME: Chart name + Strike + DIR (ALL CAPS)
                     var rawName = activeTradeData.inst + ' ' + activeTradeData.strike + ' ' + activeTradeData.dir;
                     var formattedName = rawName.toUpperCase().replace(/\s+/g, ' ').trim();
-                    
                     var fileName = formattedName.replace(/\s+/g, '_') + '_' + dateStr + '.jpg';
                     
                     formData.append('file', blob, fileName); 
@@ -220,27 +180,26 @@
                     formData.append('date', dateStr); 
 
                     $.ajax({
-                        url: taa_vars.ajaxurl,
-                        type: 'POST',
-                        data: formData,
-                        processData: false,
-                        contentType: false,
+                        url: taa_vars.ajaxurl, type: 'POST', data: formData, processData: false, contentType: false,
                         success: function(response) {
                             if(response.success) {
                                 if(typeof Swal !== 'undefined') Swal.fire('Published!', 'Image uploaded to server for ' + dateStr, 'success');
                                 else alert('Published Successfully for ' + dateStr);
                                 
                                 $(document).trigger('taa_gallery_refresh');
-                                // Optional: Refresh current dashboard to show View button immediately
-                                if(typeof notifyGlobalChange === 'function') notifyGlobalChange();
+                                // Force disable button immediately to prevent double-click
+                                $btn.html('⚠ Already Published').css({'background-color': '#6c757d', 'cursor': 'not-allowed'});
                             } else {
                                 var msg = response.data || 'Publish failed';
                                 if(typeof Swal !== 'undefined') Swal.fire('Error', msg, 'error');
                                 else alert('Error: ' + msg);
+                                $btn.prop('disabled', false).html(originalText);
                             }
                         },
-                        error: function(xhr, status, error) { alert('Network Error: ' + error); },
-                        complete: function() { $btn.prop('disabled', false).html(originalText); }
+                        error: function(xhr, status, error) { 
+                            alert('Network Error: ' + error); 
+                            $btn.prop('disabled', false).html(originalText);
+                        }
                     });
                 }, 'image/jpeg', 0.95);
             }, 100);
@@ -267,15 +226,12 @@
         function getMousePos(evt) {
             var cvs = document.getElementById('taa-mkt-canvas');
             var rect = cvs.getBoundingClientRect();
-            var scaleX = 1126 / rect.width; 
-            var scaleY = 844 / rect.height; 
-            
+            var scaleX = 1126 / rect.width; var scaleY = 844 / rect.height; 
             var cx = evt.clientX; var cy = evt.clientY;
             if(evt.touches && evt.touches.length > 0) { cx = evt.touches[0].clientX; cy = evt.touches[0].clientY; }
             return { x: (cx - rect.left) * scaleX, y: (cy - rect.top) * scaleY };
         }
 
-        // --- DRAG EVENTS ---
         $(document).on('mousedown touchstart', '#taa-mkt-canvas', function(e) {
             var evt = e.originalEvent || e; var pos = getMousePos(evt);
             for (var i = draggableItems.length - 1; i >= 0; i--) {
@@ -301,36 +257,27 @@
 
         $(document).on('mouseup touchend', function() { isDragging = false; });
 
-        // --- DRAW FUNCTION ---
         function drawCanvas() {
             var cvs = document.getElementById('taa-mkt-canvas');
             if(!cvs || !activeTradeData) return;
             var ctx = cvs.getContext('2d');
             var W = 1126; var H = 844;
-            
             if(cvs.width !== W) { cvs.width = W; cvs.height = H; }
-            
             ctx.setTransform(1, 0, 0, 1, 0, 0); 
             ctx.textBaseline = "alphabetic"; ctx.textAlign = "start";
 
-            // Background
             var isBuy = (activeTradeData.dir.toUpperCase() === 'BUY');
             var mainColor = isBuy ? '#28a745' : '#dc3545'; 
             ctx.fillStyle = '#0b0e11'; ctx.fillRect(0, 0, W, H);
             ctx.fillStyle = "#0b0e11"; ctx.fillRect(0, 0, W, 120);
 
-            // Header
             ctx.fillStyle = mainColor; ctx.fillRect(30, 25, 200, 70);
             ctx.fillStyle = "#FFFFFF"; ctx.font = "bold 40px Arial"; ctx.textAlign = "center";
             ctx.fillText((isBuy ? "▲" : "▼") + " " + activeTradeData.dir, 130, 75);
 
-            // NAME: All Caps Logic
             var name = (activeTradeData.inst + (activeTradeData.strike && activeTradeData.strike !== '-' ? " " + activeTradeData.strike : "")).toUpperCase();
-            
-            ctx.fillStyle = "#FFC107"; ctx.font = "bold 55px Arial";
-            ctx.fillText(name, W/2, 80);
+            ctx.fillStyle = "#FFC107"; ctx.font = "bold 55px Arial"; ctx.fillText(name, W/2, 80);
 
-            // Chart
             var imgY = 130; var imgH = 550; var imgW = W - 40; var imgX = 20;
             ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 1; ctx.strokeRect(imgX, imgY, imgW, imgH);
             
@@ -342,26 +289,12 @@
                 ctx.fillText("Loading Chart...", W/2, imgY + imgH/2);
             }
 
-            // Watermark
-            ctx.save(); 
-            ctx.translate(W/2, imgY + imgH/2); 
-            ctx.rotate(-Math.PI / 6); 
-            
-            // Alignment Settings
-            ctx.textAlign = "center"; 
-            ctx.textBaseline = "middle"; // Ensures vertical centering
-            ctx.fillStyle = "rgba(255, 255, 255, 0.15)"; // Slight opacity boost
-            ctx.font = "900 80px Arial"; // Adjusted size for 2 lines
-            
-            // Draw Line 1 (Phone) - shifted Up
-            ctx.fillText("7439895689", 0, -50); 
-            
-            // Draw Line 2 (Brand) - shifted Down
-            ctx.fillText("RDALGO.IN", 0, 30); 
-            
+            ctx.save(); ctx.translate(W/2, imgY + imgH/2); ctx.rotate(-Math.PI / 6); 
+            ctx.textAlign = "center"; ctx.textBaseline = "middle"; 
+            ctx.fillStyle = "rgba(255, 255, 255, 0.15)"; ctx.font = "900 80px Arial"; 
+            ctx.fillText("7439895689", 0, -50); ctx.fillText("RDALGO.IN", 0, 30); 
             ctx.restore();
             
-            // Items
             draggableItems.forEach(function(it, idx) {
                 if (it.type === 'image' && it.loaded) {
                     ctx.drawImage(it.img, it.x, it.y, it.w, it.h);
@@ -380,7 +313,6 @@
                 }
             });
 
-            // Footer
             ctx.textBaseline = "alphabetic"; ctx.textAlign = "center";
             var startY = imgY + imgH + 15; 
             ctx.fillStyle = "#FFC107"; ctx.fillRect(0, startY, W, H - startY);
