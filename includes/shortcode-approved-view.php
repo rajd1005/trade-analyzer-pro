@@ -58,14 +58,21 @@ if (!$is_ajax):
                 if($rows):
                     foreach($rows as $key => $r): 
                         $total_profit_day += floatval($r->profit);
-                        $is_updated = (strpos($r->status, 'UPDATED') !== false);
-                        
-                        $daily_index = $total_count - $key;
-                        $idx_str = sprintf('%02d', $daily_index); 
-                        $date_str = date('d_M', strtotime($r->created_at)); 
-                        $clean_chart_name = preg_replace('/[^A-Za-z0-9\- ]/', '', $r->chart_name); 
-                        $download_name = $idx_str . '_' . $date_str . '_' . $clean_chart_name;
-                        if(!empty($r->strike)) $download_name .= ' ' . preg_replace('/[^A-Za-z0-9\- ]/', '', $r->strike);
+                        $is_updated = (strpos($r->status, 'UPDATED') !== false);                       
+// [UPDATED] Filename Format: Instrument_Strike_Date
+$date_str = date('d-M-Y', strtotime($r->created_at)); 
+$clean_chart_name = preg_replace('/[^A-Za-z0-9\- ]/', '', $r->chart_name); 
+
+// Start with Instrument Name
+$download_name = $clean_chart_name;
+
+// Add Strike (if exists)
+if(!empty($r->strike)) {
+    $download_name .= '_' . preg_replace('/[^A-Za-z0-9\- ]/', '', $r->strike);
+}
+
+// Add Date at the end
+$download_name .= '_' . $date_str;
                         $ext = pathinfo($r->image_url, PATHINFO_EXTENSION);
                         if(empty($ext) || strlen($ext) > 4) $ext = 'png'; 
                         $full_filename = $download_name . '.' . $ext;

@@ -71,6 +71,27 @@ if (!$is_ajax):
                     foreach($rows as $r): 
                         $is_approved = (strpos($r->status, 'APPROVED') !== false);
                         
+                        // [UPDATED] Filename Logic: Instrument_Strike_Date
+                        $date_str = date('d-M-Y', strtotime($r->created_at)); 
+                        $clean_chart_name = preg_replace('/[^A-Za-z0-9\- ]/', '', $r->chart_name); 
+                        
+                        // 1. Instrument Name
+                        $download_name = $clean_chart_name;
+                        
+                        // 2. Add Strike (if exists)
+                        if(!empty($r->strike)) {
+                            $download_name .= '_' . preg_replace('/[^A-Za-z0-9\- ]/', '', $r->strike);
+                        }
+                        
+                        // 3. Add Date
+                        $download_name .= '_' . $date_str;
+
+                        // 4. Build Full Link
+                        $ext = pathinfo($r->image_url, PATHINFO_EXTENSION);
+                        if(empty($ext) || strlen($ext) > 4) $ext = 'png'; 
+                        $full_filename = $download_name . '.' . $ext;
+                        $download_link = admin_url('admin-ajax.php') . '?action=taa_download_chart&req_url=' . urlencode($r->image_url) . '&req_name=' . urlencode($full_filename);
+
                         $mkt_data = [];
                         if ($is_approved) {
                             $mkt_data = [
@@ -132,7 +153,7 @@ if (!$is_ajax):
 
                         <td style="white-space:nowrap;">
                             <?php if($r->image_url): ?>
-                                <a href="<?php echo esc_url($r->image_url); ?>" target="_blank" class="taa-btn-view">Original</a>
+                                <a href="<?php echo $download_link; ?>" class="taa-btn-view" style="background-color:#0073aa; color:white; padding:3px 6px; font-size:10px; border-radius:3px; margin-right:5px; text-decoration:none;">⬇</a>
                                 
                                 <?php if($is_approved): ?>
                                 <button type="button" class="taa-btn-marketing" 

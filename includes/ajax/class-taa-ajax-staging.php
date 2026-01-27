@@ -217,17 +217,26 @@ class TAA_Ajax_Staging {
         ]);
     }
 
-    /**
-     * Download Chart logic
+/**
+     * Download Chart logic (Now supports dynamic filenames)
      */
     public function download_chart() { 
         $url = isset($_GET['req_url']) ? esc_url_raw($_GET['req_url']) : '';
+        // [FIX] Capture the requested filename, default to chart.png if missing
+        $name = isset($_GET['req_name']) ? sanitize_file_name($_GET['req_name']) : 'chart.png';
+
         if(empty($url)) wp_die('Invalid Request');
 
         $file_path = $this->resolve_path_from_url($url);
         if ($file_path && file_exists($file_path)) {
-            header('Content-Type: image/png');
-            header('Content-Disposition: attachment; filename="chart.png"');
+            // [FIX] Detect correct MIME type
+            $ext = pathinfo($file_path, PATHINFO_EXTENSION);
+            $mime = (strtolower($ext) === 'jpg' || strtolower($ext) === 'jpeg') ? 'image/jpeg' : 'image/png';
+
+            header('Content-Type: ' . $mime);
+            // [FIX] Use the dynamic name variable
+            header('Content-Disposition: attachment; filename="' . $name . '"');
+            header('Content-Length: ' . filesize($file_path));
             readfile($file_path);
             exit;
         } else {

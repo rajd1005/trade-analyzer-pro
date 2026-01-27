@@ -121,8 +121,23 @@ if (!$is_ajax):
                         <td style="color:green;"><?php echo TAA_DB::format_inr($r->profit); ?></td>
                         
                         <td>
-                            <?php if($is_this_approved): ?>
+                        <?php if($is_this_approved): 
+                                // [NEW] Calculate Download Link for Approved Trades in Staging
+                                $date_str = date('d-M-Y', strtotime($r->created_at)); 
+                                $clean_chart_name = preg_replace('/[^A-Za-z0-9\- ]/', '', $r->chart_name); 
+                                $dl_name = $clean_chart_name;
+                                if(!empty($r->strike)) $dl_name .= '_' . preg_replace('/[^A-Za-z0-9\- ]/', '', $r->strike);
+                                $dl_name .= '_' . $date_str;
+                                
+                                $ext = pathinfo($r->image_url, PATHINFO_EXTENSION);
+                                if(empty($ext) || strlen($ext) > 4) $ext = 'png';
+                                $full_dl_name = $dl_name . '.' . $ext;
+                                $dl_link = admin_url('admin-ajax.php') . '?action=taa_download_chart&req_url=' . urlencode($r->image_url) . '&req_name=' . urlencode($full_dl_name);
+                            ?>
                                 <span class="taa-badge" style="background:#28a745;">APPROVED</span>
+                                
+                                <a href="<?php echo $dl_link; ?>" class="taa-btn-view" style="background-color:#0073aa; color:white; padding:3px 6px; font-size:10px; border-radius:3px; margin-left:5px; text-decoration:none;">⬇</a>
+
                                 <button type="button" class="taa-btn-marketing" 
                                     data-trade='<?php echo json_encode($mkt_data, JSON_HEX_APOS | JSON_HEX_QUOT); ?>'
                                     style="background:#6f42c1; color:white; border:none; border-radius:3px; cursor:pointer; font-size:10px; padding:3px 6px; margin-left:5px;">
